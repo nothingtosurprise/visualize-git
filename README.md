@@ -10,9 +10,10 @@ A beautiful GitHub repository visualizer with star history tracking, powered by 
 - 🌌 **Interactive Graph** - Force-directed visualization of repository structure with D3.js
 - ⭐ **Star History** - Real star history data fetched from GitHub API with beautiful charts
 - 🔴 **Live Updates** - Real-time streaming of commits and changes using Motia Streams
-- 📊 **Embeddable Charts** - Generate SVG badges and charts for your README
-- 🎨 **Developer Aesthetic** - Dark theme with Motia colors (cyan, blue, gold)
+- 📊 **Embeddable Charts** - Generate SVG badges and charts for your README (dark & light themes)
+- 🎨 **Theme Support** - Polished dark and light modes for embeddable charts
 - 🔌 **Chrome Extension** - View star history directly on GitHub pages
+- 🔄 **Multi-Repo Comparison** - Compare star histories of multiple repositories on one chart
 
 ## Quick Start
 

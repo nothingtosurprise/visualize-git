@@ -38,8 +38,8 @@ interface RepoData {
   totalStars: number
 }
 
-// Color palette for multiple repos
-const REPO_COLORS = [
+// Color palette for multiple repos (work well on both dark and light)
+const REPO_COLORS_DARK = [
   '#fbbf24', // amber
   '#00d4ff', // cyan
   '#22c55e', // green
@@ -48,6 +48,17 @@ const REPO_COLORS = [
   '#f97316', // orange
   '#ec4899', // pink
   '#06b6d4', // teal
+]
+
+const REPO_COLORS_LIGHT = [
+  '#d97706', // amber (darker)
+  '#0891b2', // cyan (darker)
+  '#16a34a', // green (darker)
+  '#dc2626', // red (darker)
+  '#9333ea', // purple (darker)
+  '#ea580c', // orange (darker)
+  '#db2777', // pink (darker)
+  '#0891b2', // teal (darker)
 ]
 
 async function fetchStarHistory(
@@ -67,7 +78,7 @@ async function fetchStarHistory(
   }
 
   try {
-    // Get repo info for total stars
+    // Get repo info for total stars and creation date
     const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: { ...headers, 'Accept': 'application/vnd.github.v3+json' }
     })
@@ -78,18 +89,41 @@ async function fetchStarHistory(
     
     const repoData = await repoResponse.json()
     const totalStars = repoData.stargazers_count || 0
+    const createdAt = repoData.created_at
     
     // Fetch real stargazer history by sampling pages
     const history: StarDataPoint[] = []
     const starsPerPage = 100
-    const totalPages = Math.ceil(totalStars / starsPerPage)
     
-    // Sample up to 12 pages spread across history
-    const pagesToFetch = Math.min(12, totalPages)
-    const pageStep = Math.max(1, Math.floor(totalPages / pagesToFetch))
+    // GitHub limits stargazer pagination to 400 pages (40k stars max)
+    const GITHUB_MAX_PAGES = 400
+    const actualTotalPages = Math.ceil(totalStars / starsPerPage)
+    const accessiblePages = Math.min(actualTotalPages, GITHUB_MAX_PAGES)
+    const accessibleStars = accessiblePages * starsPerPage
     
-    for (let i = 0; i < pagesToFetch; i++) {
-      const page = Math.min(i * pageStep + 1, totalPages)
+    // Use more sample points for better granularity (up to 20 API calls)
+    const maxSamples = Math.min(20, accessiblePages)
+    const pagesToFetch: number[] = []
+    
+    for (let i = 0; i < maxSamples; i++) {
+      // Linear distribution across accessible pages
+      const progress = i / (maxSamples - 1 || 1)
+      const page = Math.max(1, Math.min(accessiblePages, Math.round(1 + progress * (accessiblePages - 1))))
+      
+      if (!pagesToFetch.includes(page)) {
+        pagesToFetch.push(page)
+      }
+    }
+    
+    // Also ensure we have page 1 and last accessible page
+    if (!pagesToFetch.includes(1)) pagesToFetch.unshift(1)
+    if (!pagesToFetch.includes(accessiblePages)) pagesToFetch.push(accessiblePages)
+    
+    // Sort pages to fetch in order
+    pagesToFetch.sort((a, b) => a - b)
+    
+    // Fetch each sampled page
+    for (const page of pagesToFetch) {
       const url = `https://api.github.com/repos/${owner}/${repo}/stargazers?per_page=${starsPerPage}&page=${page}`
       
       const response = await fetch(url, { headers })
@@ -108,7 +142,34 @@ async function fetchStarHistory(
       }
     }
     
-    // Add current total
+    // For repos with more stars than we can access, extrapolate to current total
+    // We have real data up to accessibleStars, and need to show growth to totalStars
+    if (totalStars > accessibleStars && history.length > 1) {
+      // Get the last accessible data point's date
+      const lastAccessibleDate = history[history.length - 1]?.date
+      if (lastAccessibleDate) {
+        const lastDate = new Date(lastAccessibleDate)
+        const now = new Date()
+        const daysDiff = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+        
+        // Add interpolated points from last accessible to now
+        const starsToAdd = totalStars - accessibleStars
+        const numInterpolatedPoints = Math.min(5, Math.ceil(daysDiff / 60)) // ~1 point per 2 months
+        
+        for (let i = 1; i <= numInterpolatedPoints; i++) {
+          const progress = i / (numInterpolatedPoints + 1)
+          const interpolatedDate = new Date(lastDate.getTime() + progress * (now.getTime() - lastDate.getTime()))
+          const interpolatedStars = Math.round(accessibleStars + starsToAdd * Math.pow(progress, 0.8))
+          
+          history.push({
+            date: interpolatedDate.toISOString().split('T')[0],
+            stars: interpolatedStars,
+          })
+        }
+      }
+    }
+    
+    // Add current total as the final point
     history.push({
       date: new Date().toISOString().split('T')[0],
       stars: totalStars,
@@ -175,7 +236,7 @@ function generateSimulatedHistory(totalStars: number, createdAt?: string): StarD
 }
 
 function generateSVG(repos: RepoData[], theme: string): string {
-  const isDark = theme === 'dark'
+  const isDark = theme !== 'light'
   
   // SVG dimensions
   const width = 800
@@ -184,11 +245,31 @@ function generateSVG(repos: RepoData[], theme: string): string {
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
 
-  // Colors based on theme
-  const bgColor = isDark ? '#0d1424' : '#ffffff'
-  const textColor = isDark ? '#e2e8f0' : '#1e293b'
-  const gridColor = isDark ? '#1e3a5f' : '#e2e8f0'
-  const axisColor = isDark ? '#64748b' : '#94a3b8'
+  // Colors based on theme - both modes look polished
+  const colors = isDark ? {
+    bg: '#0d1424',
+    bgGradient1: '#0d1424',
+    bgGradient2: '#0f172a',
+    text: '#e2e8f0',
+    grid: '#1e3a5f',
+    axis: '#64748b',
+    border: '#1e3a5f',
+    watermark: '#475569',
+  } : {
+    bg: '#fafbfc',
+    bgGradient1: '#ffffff',
+    bgGradient2: '#f1f5f9',
+    text: '#0f172a',
+    grid: '#e2e8f0',
+    axis: '#64748b',
+    border: '#e2e8f0',
+    watermark: '#94a3b8',
+  }
+
+  const bgColor = colors.bg
+  const textColor = colors.text
+  const gridColor = colors.grid
+  const axisColor = colors.axis
 
   // Find global min/max across all repos
   const allDates: number[] = []
@@ -261,13 +342,17 @@ function generateSVG(repos: RepoData[], theme: string): string {
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap');
       text { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
     </style>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${colors.bgGradient1}"/>
+      <stop offset="100%" stop-color="${colors.bgGradient2}"/>
+    </linearGradient>
     ${repoPaths.map((r, i) => `
     <linearGradient id="gradient${i}" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="${r.color}" stop-opacity="0.4"/>
+      <stop offset="0%" stop-color="${r.color}" stop-opacity="${isDark ? '0.4' : '0.25'}"/>
       <stop offset="100%" stop-color="${r.color}" stop-opacity="0.02"/>
     </linearGradient>`).join('')}
     <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feGaussianBlur stdDeviation="${isDark ? '3' : '2'}" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -275,8 +360,9 @@ function generateSVG(repos: RepoData[], theme: string): string {
     </filter>
   </defs>
   
-  <!-- Background -->
-  <rect width="${width}" height="${height}" fill="${bgColor}" rx="12"/>
+  <!-- Background with subtle gradient -->
+  <rect width="${width}" height="${height}" fill="url(#bgGradient)" rx="12"/>
+  ${!isDark ? `<rect width="${width}" height="${height}" fill="none" stroke="${colors.border}" stroke-width="1" rx="12"/>` : ''}
   
   <!-- Title -->
   <text x="${width / 2}" y="32" text-anchor="middle" font-size="16" font-weight="600" fill="${textColor}">
@@ -321,7 +407,7 @@ function generateSVG(repos: RepoData[], theme: string): string {
   <text x="${padding.left + 16 + i * 150}" y="${padding.top - 14}" font-size="11" fill="${textColor}">${r.repo}</text>`).join('')}
   
   <!-- Watermark -->
-  <text x="${width - 12}" y="${height - 12}" text-anchor="end" font-size="9" fill="${axisColor}" opacity="0.6">
+  <text x="${width - 12}" y="${height - 12}" text-anchor="end" font-size="9" fill="${colors.watermark}" opacity="0.7">
     gitgalaxy · powered by motia.dev
   </text>
 </svg>`
@@ -331,6 +417,10 @@ export const handler: Handlers['EmbedStarHistory'] = async (req, ctx) => {
   const { repos: reposParam, theme = 'dark', type = 'Date', token } = req.queryParams as Record<string, string>
 
   ctx.logger.info('Generating embeddable star history SVG', { repos: reposParam, theme })
+
+  // Select color palette based on theme
+  const isDark = theme !== 'light'
+  const COLORS = isDark ? REPO_COLORS_DARK : REPO_COLORS_LIGHT
 
   try {
     // Parse repos
@@ -357,7 +447,7 @@ export const handler: Handlers['EmbedStarHistory'] = async (req, ctx) => {
         const fallbackStars = 1000
         return {
           repo: repoStr,
-          color: REPO_COLORS[index % REPO_COLORS.length],
+          color: COLORS[index % COLORS.length],
           history: generateSimulatedHistory(fallbackStars),
           totalStars: fallbackStars,
         }
@@ -365,7 +455,7 @@ export const handler: Handlers['EmbedStarHistory'] = async (req, ctx) => {
       
       return {
         repo: repoStr,
-        color: REPO_COLORS[index % REPO_COLORS.length],
+        color: COLORS[index % COLORS.length],
         history: result.history,
         totalStars: result.totalStars,
       }
