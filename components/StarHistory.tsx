@@ -13,7 +13,8 @@ interface StarDataPoint {
   stars: number;
 }
 
-const API_BASE = 'http://localhost:3001';
+// Use relative URLs in production (goes through Vercel proxy)
+const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:3001';
 
 const StarHistory: React.FC<StarHistoryProps> = ({ repoInfo, onOpenFullPage, token }) => {
   const [history, setHistory] = useState<StarDataPoint[]>([]);

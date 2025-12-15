@@ -20,7 +20,9 @@ interface StarData {
   history: StarDataPoint[];
 }
 
-const API_BASE = 'http://localhost:3001';
+// Use relative URLs in production (goes through Vercel proxy)
+const isProduction = import.meta.env.PROD;
+const API_BASE = isProduction ? '' : 'http://localhost:3001';
 
 const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, token }) => {
   const [data, setData] = useState<StarData | null>(null);
@@ -81,7 +83,12 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
 
     loadStarHistory();
 
-    // Set up WebSocket for real-time updates
+    // Set up WebSocket for real-time updates (only in development)
+    // WebSocket streaming is not available in production (Vercel serverless)
+    if (isProduction) {
+      return; // Skip WebSocket in production
+    }
+    
     const wsUrl = `ws://localhost:3001/__streams/stars?groupId=${repoInfo.owner.login}&id=${repoInfo.name}`;
     const ws = new WebSocket(wsUrl);
 
