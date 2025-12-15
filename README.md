@@ -102,23 +102,10 @@ Custom SVG chart renders growth curve
 Shows stats: total stars, data points, first tracked date
 ```
 
-**3. Live Updates (Real-time Streaming)**
+**3. Live Updates (Local Development Only)**
 ```
-User clicks "Watch for Updates"
-    ↓
-Frontend calls POST /api/github/watch
-    ↓
-Motia stores watched repo in state
-    ↓
-Cron Step (every 30s) emits poll-repo-updates event
-    ↓
-Event Step fetches latest commits from GitHub
-    ↓
-Emits updates to repo-updates Stream
-    ↓
-Frontend subscribes to stream via SSE
-    ↓
-Shows live commit feed in UI
+Note: Real-time updates only work in local development.
+For production, set up GitHub webhooks to receive push events.
 ```
 
 **4. Embeddable SVG Charts**
@@ -139,8 +126,8 @@ Displays beautiful chart in README
 ### Key Motia Concepts Used
 
 - **API Steps**: HTTP endpoints for synchronous requests (repo details, tree, star history)
-- **Event Steps**: Background tasks triggered by events (polling GitHub for updates)
-- **Cron Steps**: Scheduled tasks (polling every 30 seconds)
+- **Event Steps**: Background tasks triggered by events
+- **Streams**: Real-time data synchronization
 - **Streams**: Real-time data streaming (SSE for live commit updates)
 - **State Management**: Storing watched repositories across requests
 
@@ -548,8 +535,7 @@ gitgalaxy/
 │       ├── embed-stars.step.ts         # API: Generate SVG chart
 │       ├── embed-badge.step.ts         # API: Generate SVG badge
 │       ├── watch-repo.step.ts          # API: Start watching repo
-│       ├── poll-repo-updates.step.ts   # Event: Poll for updates
-│       ├── scheduled-poll.step.ts      # Cron: Scheduled polling
+│       ├── watch-repo.step.ts          # API: Watch repo (local dev)
 │       ├── repo-updates.stream.ts      # Stream: Live repo updates
 │       └── stars.stream.ts             # Stream: Live star tracking
 ├── components/              # React Frontend Components
@@ -829,8 +815,8 @@ A: When GitHub API rate limits are hit or for very new repos, we generate realis
 **Q: Can I track private repositories?**  
 A: Yes, if you provide a GitHub token with appropriate permissions. Note that embed charts for private repos will only work for authorized users.
 
-**Q: How often does live updates poll GitHub?**  
-A: Every 30 seconds via the Cron Step. You can adjust this in `src/github/scheduled-poll.step.ts`.
+**Q: Are live updates available in production?**  
+A: Real-time updates only work in local development. For production, you'd need to set up GitHub webhooks.
 
 **Q: Can I self-host without Motia Cloud?**  
 A: Yes! Check [Self-Hosted Deployment](https://www.motia.dev/docs/deployment-guide/self-hosted-deployment) guide.

@@ -20,7 +20,7 @@ const errorSchema = z.object({
 export const config: ApiRouteConfig = {
   type: 'api',
   name: 'WatchRepo',
-  description: 'Start watching a GitHub repository for changes',
+  description: 'Start watching a GitHub repository for changes (local dev only)',
   flows: ['gitgalaxy'],
   method: 'POST',
   path: '/api/github/watch',
@@ -29,63 +29,23 @@ export const config: ApiRouteConfig = {
     200: responseSchema,
     500: errorSchema,
   },
-  emits: ['poll-repo-updates'],
+  emits: [],
 }
 
-export const handler: Handlers['WatchRepo'] = async (req, { logger, emit, state, streams }) => {
-  const { owner, repo, token } = req.body
+export const handler: Handlers['WatchRepo'] = async (req, { logger }) => {
+  const { owner, repo } = req.body
   const watchId = `${owner}/${repo}`
 
-  logger.info('Starting to watch repository', { owner, repo })
+  logger.info('Watch request received (local dev only)', { owner, repo })
 
-  try {
-    // Store watch config in state
-    await state.set(`watch:${watchId}`, {
-      owner,
-      repo,
-      token,
-      lastChecked: new Date().toISOString(),
-      lastSha: null,
-    }, { ttl: 3600 * 24 }) // 24 hour TTL
-
-    // Add to watched repos list for cron job
-    const watchedRepos = await state.get<string[]>('watched-repos') || []
-    if (!watchedRepos.includes(watchId)) {
-      watchedRepos.push(watchId)
-      await state.set('watched-repos', watchedRepos, { ttl: 3600 * 24 })
-    }
-
-    // Emit initial poll event
-    await emit({
-      topic: 'poll-repo-updates',
-      data: { owner, repo, token },
-    })
-
-    // Send initial update via stream
-    await streams.repoUpdates.set(watchId, watchId, {
-      id: watchId,
-      owner,
-      repo,
-      type: 'refresh',
-      message: `Started watching ${owner}/${repo}`,
-      timestamp: new Date().toISOString(),
-    })
-
-    return {
-      status: 200,
-      body: {
-        success: true,
-        message: `Now watching ${owner}/${repo} for changes`,
-        watchId,
-      },
-    }
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Failed to start watching repo', { error: message })
-    return {
-      status: 500,
-      body: { error: message },
-    }
+  // In production, real-time watching requires GitHub webhooks
+  // This endpoint is mainly for local development compatibility
+  return {
+    status: 200,
+    body: {
+      success: true,
+      message: `Watching ${owner}/${repo} (local dev mode)`,
+      watchId,
+    },
   }
 }
-

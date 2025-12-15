@@ -13,10 +13,8 @@ declare module 'motia' {
   }
 
   interface Handlers {
-    'WatchRepo': ApiRouteHandler<{ owner: string; repo: string; token?: string }, ApiResponse<200, { success: boolean; message: string; watchId: string }> | ApiResponse<500, { error: string }>, { topic: 'poll-repo-updates'; data: { owner: string; repo: string; token?: string } }>
+    'WatchRepo': ApiRouteHandler<{ owner: string; repo: string; token?: string }, ApiResponse<200, { success: boolean; message: string; watchId: string }> | ApiResponse<500, { error: string }>, never>
     'TrackStars': ApiRouteHandler<{ owner: string; repo: string; token?: string }, ApiResponse<200, { success: boolean; stars: number; name: string; fullName: string }> | ApiResponse<500, { error: string }>, { topic: 'fetch-star-history'; data: { owner: string; repo: string; token?: string } }>
-    'ScheduledRepoPoll': CronHandler<{ topic: 'poll-repo-updates'; data: { owner: string; repo: string; token?: string } }>
-    'PollRepoUpdates': EventHandler<{ owner: string; repo: string; token?: string }, never>
     'GetStarHistory': ApiRouteHandler<Record<string, unknown>, ApiResponse<200, { owner: string; repo: string; totalStars: number; history: Array<{ date: string; stars: number }> }> | ApiResponse<403, { error: string }> | ApiResponse<500, { error: string }>, never>
     'GetRepoTree': ApiRouteHandler<Record<string, unknown>, ApiResponse<200, { nodes: Array<{ id: string; name: string; type: 'blob' | 'tree'; path: string; size?: number; extension?: string; parentId?: string | unknown; fx?: number; fy?: number }>; links: Array<{ source: string; target: string }> }> | ApiResponse<403, { error: string }> | ApiResponse<500, { error: string }>, never>
     'Get Repository Details': ApiRouteHandler<Record<string, unknown>, unknown, never>
