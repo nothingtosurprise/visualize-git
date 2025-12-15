@@ -166,11 +166,19 @@ After deploying to Vercel (see [Deploy Frontend to Vercel](#deploy-frontend-to-v
 | `repos` | Comma-separated repos (required) | `motiadev/motia` or `motiadev/motia,vercel/next.js` |
 | `theme` | `dark` or `light` (default: `dark`) | `theme=light` |
 | `type` | Chart type (default: `Date`) | `type=Date` |
-| `token` | GitHub token for higher rate limits | `token=ghp_xxx` |
 
-**Multiple repos example:**
+> ⚠️ **Security Note:** The API uses your server's `GITHUB_TOKEN` environment variable automatically. **Never put tokens in public URLs!**
+
+**Examples:**
 ```markdown
-[![Star History](https://your-project.vercel.app/api/embed/stars?repos=motiadev/motia,vercel/next.js&theme=dark)](https://github.com)
+<!-- Single repo (dark theme) -->
+[![Star History](https://your-project.vercel.app/api/embed/stars?repos=motiadev/motia)](https://github.com/motiadev/motia)
+
+<!-- Multi-repo comparison -->
+[![Star History](https://your-project.vercel.app/api/embed/stars?repos=facebook/react,vercel/next.js&theme=dark)](https://github.com)
+
+<!-- Light mode for light backgrounds -->
+[![Star History](https://your-project.vercel.app/api/embed/stars?repos=motiadev/motia&theme=light)](https://github.com/motiadev/motia)
 ```
 
 ### Star Badge
@@ -187,7 +195,8 @@ After deploying to Vercel (see [Deploy Frontend to Vercel](#deploy-frontend-to-v
 | `style` | `flat`, `flat-square`, `plastic` | `?style=flat-square` |
 | `theme` | `dark` or `light` (default: `dark`) | `?theme=light` |
 | `label` | Custom label text | `?label=GitHub%20Stars` |
-| `token` | GitHub token for higher rate limits | `?token=ghp_xxx` |
+
+> ⚠️ **Security Note:** Token authentication is handled server-side via `GITHUB_TOKEN` environment variable.
 
 **Examples:**
 ```markdown

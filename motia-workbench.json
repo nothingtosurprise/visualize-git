@@ -28,31 +28,23 @@
     "id": "gitgalaxy",
     "config": {
       "src/github/watch-repo.step.ts": {
-        "x": -164,
-        "y": 128
+        "x": -118,
+        "y": 393
       },
       "src/github/track-stars.step.ts": {
         "x": -553,
         "y": 648
       },
-      "src/github/scheduled-poll.step.ts": {
-        "x": -172,
-        "y": 398
-      },
-      "src/github/poll-repo-updates.step.ts": {
-        "x": 604,
-        "y": 268
-      },
       "src/github/get-star-history.step.ts": {
-        "x": -562,
-        "y": 127
+        "x": 354,
+        "y": 389
       },
       "src/github/get-repo-tree.step.ts": {
         "x": -571,
         "y": 389
       },
       "src/github/fetch-star-history-event.step.ts": {
-        "x": 648,
+        "x": 366,
         "y": 672
       }
     }
