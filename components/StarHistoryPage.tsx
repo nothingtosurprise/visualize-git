@@ -167,33 +167,33 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
   return (
     <div className="fixed inset-0 z-50 bg-[#050810] overflow-auto">
       {/* Header */}
-      <div className="sticky top-0 bg-[#050810]/95 backdrop-blur border-b border-[#1e3a5f] p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="sticky top-0 bg-[#050810]/95 backdrop-blur border-b border-[#1e3a5f] p-3 sm:p-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
           <img 
             src={repoInfo.owner.avatar} 
             alt={repoInfo.owner.login}
-            className="w-10 h-10 rounded-lg"
+            className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex-shrink-0"
           />
-          <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <Star className="text-[#fbbf24] fill-[#fbbf24]" size={20} />
-              {repoInfo.owner.login}/{repoInfo.name}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-sm sm:text-xl font-bold text-white flex items-center gap-1 sm:gap-2 truncate">
+              <Star className="text-[#fbbf24] fill-[#fbbf24] flex-shrink-0" size={16} />
+              <span className="truncate">{repoInfo.owner.login}/{repoInfo.name}</span>
             </h1>
-            <p className="text-sm text-[#64748b]">Star History · Powered by Motia</p>
+            <p className="text-xs sm:text-sm text-[#64748b] hidden sm:block">Star History · Powered by Motia</p>
           </div>
           {isTracking && (
-            <span className="flex items-center gap-1 text-xs text-[#22c55e] bg-[#22c55e]/10 px-2 py-1 rounded-full border border-[#22c55e]/20">
+            <span className="hidden sm:flex items-center gap-1 text-xs text-[#22c55e] bg-[#22c55e]/10 px-2 py-1 rounded-full border border-[#22c55e]/20 flex-shrink-0">
               <Zap size={10} className="animate-pulse" />
               Real-time
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <a
             href={`https://github.com/${repoInfo.owner.login}/${repoInfo.name}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 bg-[#1e3a5f] hover:bg-[#2a4a6f] text-[#00d4ff] text-sm rounded transition-colors"
+            className="hidden sm:flex items-center gap-2 px-3 py-2 bg-[#1e3a5f] hover:bg-[#2a4a6f] text-[#00d4ff] text-sm rounded transition-colors"
           >
             <ExternalLink size={14} />
             View on GitHub
@@ -208,7 +208,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
       </div>
 
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto p-8">
+      <div className="max-w-5xl mx-auto p-4 sm:p-8">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-96">
             <Loader2 size={48} className="text-[#00d4ff] animate-spin mb-4" />
@@ -227,7 +227,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
         ) : data && (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
               <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-2">
                   <Star className="text-[#fbbf24] fill-[#fbbf24]" size={24} />
@@ -451,24 +451,16 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
             {/* Footer */}
             <div className="mt-8 text-center text-sm text-[#475569]">
               <p>
-                Built with{' '}
+                Powered by{' '}
                 <a
-                  href="https://github.com/MotiaDev/motia"
+                  href="https://motia.dev"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#00d4ff] hover:underline"
+                  className="text-[#00d4ff] hover:underline font-medium"
                 >
                   Motia
                 </a>
-                {' '}· Inspired by{' '}
-                <a
-                  href="https://github.com/MotiaDev/github-stars-counter"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#00d4ff] hover:underline"
-                >
-                  github-stars-counter
-                </a>
+                {' '}· Open Source Backend Framework
               </p>
             </div>
           </>

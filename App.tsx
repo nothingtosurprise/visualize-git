@@ -7,7 +7,7 @@ import Sidebar from './components/Sidebar';
 import SearchBar from './components/SearchBar';
 import StarAnimation from './components/StarAnimation';
 import StarHistoryPage from './components/StarHistoryPage';
-import { GitCommit, RefreshCw, Radio } from 'lucide-react';
+import { GitCommit, RefreshCw, Radio, Menu, X } from 'lucide-react';
 
 const App: React.FC = () => {
   const [data, setData] = useState<RepoData>({ nodes: [], links: [] });
@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [showStarAnimation, setShowStarAnimation] = useState(false);
   const [showStarHistoryPage, setShowStarHistoryPage] = useState(false);
   const [currentToken, setCurrentToken] = useState<string>('');
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -134,8 +135,8 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col relative">
         
         {/* Header */}
-        <div className="absolute top-0 left-0 right-0 z-20 p-4">
-          <div className="max-w-lg mx-auto">
+        <div className="absolute top-0 left-0 right-0 z-20 p-3 sm:p-4">
+          <div className="max-w-lg mx-auto pr-10 sm:pr-0">
             {/* Logo */}
             <div className="flex items-center justify-center gap-2 mb-3">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-[#00d4ff]">
@@ -203,7 +204,7 @@ const App: React.FC = () => {
 
         {/* Live Updates */}
         {updates.length > 0 && (
-          <div className="absolute bottom-4 left-4 z-20 w-72">
+          <div className="absolute bottom-4 left-4 z-20 w-64 sm:w-72 hidden sm:block">
             <div className="bg-[#0d1424]/95 border border-[#1e3a5f] rounded overflow-hidden">
               <div className="flex items-center justify-between px-3 py-2 border-b border-[#1e3a5f]">
                 <span className="text-[10px] text-[#64748b] flex items-center gap-1.5">
@@ -241,15 +242,46 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Sidebar */}
+      {/* Mobile Menu Button */}
       {(repoInfo || loading) && (
-        <div className="z-30 h-full">
+        <button
+          onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+          className="fixed top-4 right-4 z-40 p-2 bg-[#0d1424] border border-[#1e3a5f] rounded-lg text-[#64748b] hover:text-white sm:hidden"
+        >
+          {showMobileSidebar ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      )}
+
+      {/* Sidebar - Desktop */}
+      {(repoInfo || loading) && (
+        <div className="z-30 h-full hidden sm:block">
           <Sidebar 
             repoInfo={repoInfo} 
             selectedNode={selectedNode} 
             onOpenStarHistory={() => setShowStarHistoryPage(true)}
             token={currentToken}
           />
+        </div>
+      )}
+
+      {/* Sidebar - Mobile Overlay */}
+      {showMobileSidebar && (repoInfo || loading) && (
+        <div className="fixed inset-0 z-50 sm:hidden">
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={() => setShowMobileSidebar(false)}
+          />
+          <div className="absolute right-0 top-0 h-full w-72 max-w-[85vw]">
+            <Sidebar 
+              repoInfo={repoInfo} 
+              selectedNode={selectedNode} 
+              onOpenStarHistory={() => {
+                setShowStarHistoryPage(true);
+                setShowMobileSidebar(false);
+              }}
+              token={currentToken}
+            />
+          </div>
         </div>
       )}
 

@@ -818,11 +818,6 @@ If you're still stuck:
 - 📺 [Video Tutorials](https://www.motia.dev/docs/video-showcase)
 - 📝 [Example Projects](https://www.motia.dev/docs/examples)
 
-### Related Projects
-
-- [star-history/star-history](https://github.com/star-history/star-history) - Inspiration for star history charts
-- [MotiaDev/github-stars-counter](https://github.com/MotiaDev/github-stars-counter) - Real-time star tracking example
-
 ## Frequently Asked Questions
 
 **Q: Do I need to deploy to use GitGalaxy?**  

@@ -1,7 +1,7 @@
 import { StreamConfig } from 'motia'
 import { z } from 'zod'
 
-// Schema for repository star data - inspired by MotiaDev/github-stars-counter
+// Schema for repository star data
 export const repositoryStarsSchema = z.object({
   id: z.string(),
   stars: z.number(),
