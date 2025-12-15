@@ -434,9 +434,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
         {data.nodes.length} nodes · {data.links.length} edges · {Math.round(transform.k * 100)}%
       </div>
 
-      {/* Mobile Legend - Compact horizontal bar */}
-      <div className="absolute bottom-20 left-2 right-2 sm:hidden">
-        <div className="flex items-center justify-center gap-3 bg-[#0d1424]/90 border border-[#1e3a5f] rounded-full px-3 py-1.5">
+      {/* Mobile Legend - Compact bar on left side */}
+      <div className="absolute bottom-24 left-2 sm:hidden">
+        <div className="flex flex-wrap items-center gap-2 bg-[#0d1424]/90 border border-[#1e3a5f] rounded-lg px-2 py-1.5 max-w-[200px]">
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#00d4ff]" />
             <span className="text-[8px] text-[#64748b]">Root</span>
