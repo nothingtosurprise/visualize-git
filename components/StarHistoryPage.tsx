@@ -31,30 +31,20 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
   const [isTracking, setIsTracking] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const loadStarHistory = async () => {
       setLoading(true);
       setError(null);
       
       try {
-        // First, start tracking via Motia API
-        const trackResponse = await fetch(`${API_BASE}/api/github/track-stars`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            owner: repoInfo.owner.login,
-            repo: repoInfo.name,
-          }),
-        });
-
-        if (trackResponse.ok) {
-          setIsTracking(true);
-        }
-
-        // Then fetch history with token for rate limits
+        // Fetch history with token for rate limits
         const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
         const historyResponse = await fetch(
           `${API_BASE}/api/github/stars/${repoInfo.owner.login}/${repoInfo.name}${tokenParam}`
         );
+
+        if (!isMounted) return;
 
         if (!historyResponse.ok) {
           throw new Error('Failed to fetch star history');
@@ -64,50 +54,30 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
         setData({
           owner: repoInfo.owner.login,
           repo: repoInfo.name,
-          totalStars: historyData.totalStars,
+          totalStars: historyData.totalStars ?? repoInfo.stars ?? 0,
           history: historyData.history,
         });
+        setIsTracking(true);
       } catch (err: any) {
+        if (!isMounted) return;
         setError(err.message || 'Failed to load star history');
         // Fallback to just showing current stars
         setData({
           owner: repoInfo.owner.login,
           repo: repoInfo.name,
-          totalStars: repoInfo.stars,
-          history: [{ date: new Date().toISOString().split('T')[0], stars: repoInfo.stars }],
+          totalStars: repoInfo.stars ?? 0,
+          history: [{ date: new Date().toISOString().split('T')[0], stars: repoInfo.stars ?? 0 }],
         });
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     loadStarHistory();
-
-    // Set up WebSocket for real-time updates (only in development)
-    // WebSocket streaming is not available in production (Vercel serverless)
-    if (isProduction) {
-      return; // Skip WebSocket in production
-    }
     
-    const wsUrl = `ws://localhost:3001/__streams/stars?groupId=${repoInfo.owner.login}&id=${repoInfo.name}`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.type === 'history-updated' || message.type === 'update') {
-          // Refresh data on update
-          loadStarHistory();
-        }
-      } catch (e) {
-        console.error('Failed to parse WebSocket message:', e);
-      }
-    };
-
     return () => {
-      ws.close();
+      isMounted = false;
     };
-    // Only re-fetch when repo changes, not on every repoInfo update
   }, [repoInfo.owner.login, repoInfo.name, token]);
 
   // Chart calculations
@@ -242,10 +212,13 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                 <div className="flex items-center gap-3 mb-2">
                   <TrendingUp className="text-[#22c55e]" size={24} />
                   <span className="text-3xl font-bold text-white tabular-nums">
-                    {data.history.length}
+                    {data.history.length > 1 
+                      ? `+${Math.round((data.history[data.history.length - 1].stars - data.history[0].stars) / Math.max(1, data.history.length - 1)).toLocaleString()}`
+                      : '—'
+                    }
                   </span>
                 </div>
-                <p className="text-sm text-[#64748b]">Data Points</p>
+                <p className="text-sm text-[#64748b]">Avg Growth/Period</p>
               </div>
               <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-2">

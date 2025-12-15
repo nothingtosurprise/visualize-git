@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, X, Filter } from 'lucide-react';
 import { RepoNode } from '../types';
 
@@ -15,9 +15,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ nodes, onHighlight, onFocusNode }
   const [selectedExt, setSelectedExt] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Compute filtered results without side effects
   const results = useMemo(() => {
     if (!query && !selectedExt) {
-      onHighlight(new Set());
       return [];
     }
 
@@ -34,8 +34,24 @@ const SearchBar: React.FC<SearchBarProps> = ({ nodes, onHighlight, onFocusNode }
       return matchesQuery && matchesExt && node.id !== 'ROOT';
     });
 
-    onHighlight(new Set(filtered.map(n => n.id)));
     return filtered.slice(0, 8); // Show top 8 results
+  }, [query, selectedExt, nodes]);
+
+  // Update highlights in useEffect (not during render)
+  useEffect(() => {
+    if (!query && !selectedExt) {
+      onHighlight(new Set());
+    } else {
+      const filtered = nodes.filter(node => {
+        const matchesQuery = query 
+          ? node.name.toLowerCase().includes(query.toLowerCase()) ||
+            node.path.toLowerCase().includes(query.toLowerCase())
+          : true;
+        const matchesExt = selectedExt ? node.extension === selectedExt : true;
+        return matchesQuery && matchesExt && node.id !== 'ROOT';
+      });
+      onHighlight(new Set(filtered.map(n => n.id)));
+    }
   }, [query, selectedExt, nodes, onHighlight]);
 
   const handleClear = () => {
