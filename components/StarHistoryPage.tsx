@@ -107,7 +107,8 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
     return () => {
       ws.close();
     };
-  }, [repoInfo, token]);
+    // Only re-fetch when repo changes, not on every repoInfo update
+  }, [repoInfo.owner.login, repoInfo.name, token]);
 
   // Chart calculations
   const chart = useMemo(() => {

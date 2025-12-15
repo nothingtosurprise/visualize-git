@@ -1,3 +1,4 @@
+/// <reference path="../../types.d.ts" />
 import { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
 

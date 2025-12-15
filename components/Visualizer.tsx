@@ -403,8 +403,8 @@ const Visualizer: React.FC<VisualizerProps> = ({
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="absolute top-4 right-4 bg-[#0d1424]/90 border border-[#1e3a5f] rounded px-3 py-2">
+      {/* Legend - hidden on mobile to avoid overlap */}
+      <div className="absolute top-4 right-4 bg-[#0d1424]/90 border border-[#1e3a5f] rounded px-3 py-2 hidden sm:block">
         <div className="text-[10px] text-[#64748b] space-y-1">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#00d4ff]" />

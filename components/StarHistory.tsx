@@ -60,7 +60,8 @@ const StarHistory: React.FC<StarHistoryProps> = ({ repoInfo, onOpenFullPage, tok
     };
 
     loadHistory();
-  }, [repoInfo.owner.login, repoInfo.name, repoInfo.stars, token]);
+    // Only re-fetch when repo changes, not when stars count updates
+  }, [repoInfo.owner.login, repoInfo.name, token]);
 
   // Generate a simulated growth curve based on current star count
   const generateSimulatedHistory = (totalStars: number): StarDataPoint[] => {
