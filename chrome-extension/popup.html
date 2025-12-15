@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 380px;
+      min-height: 200px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #050810;
+      color: #e2e8f0;
+    }
+    
+    .header {
+      padding: 16px;
+      background: linear-gradient(135deg, #0d1424 0%, #1e3a5f 100%);
+      border-bottom: 1px solid #1e3a5f;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #00d4ff, #22c55e);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .title {
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+    }
+    
+    .subtitle {
+      font-size: 11px;
+      color: #64748b;
+    }
+    
+    .content {
+      padding: 16px;
+    }
+    
+    .repo-info {
+      background: #0d1424;
+      border: 1px solid #1e3a5f;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .repo-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #00d4ff;
+      margin-bottom: 4px;
+    }
+    
+    .repo-desc {
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+    
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+    
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+    }
+    
+    .stat-icon {
+      color: #fbbf24;
+    }
+    
+    .chart-container {
+      background: #0d1424;
+      border: 1px solid #1e3a5f;
+      border-radius: 8px;
+      padding: 16px;
+      min-height: 180px;
+    }
+    
+    .chart-title {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 120px;
+      color: #64748b;
+    }
+    
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid #1e3a5f;
+      border-top-color: #00d4ff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 8px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .error {
+      text-align: center;
+      padding: 24px;
+      color: #ef4444;
+    }
+    
+    .not-repo {
+      text-align: center;
+      padding: 32px 16px;
+      color: #64748b;
+    }
+    
+    .not-repo-title {
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #e2e8f0;
+    }
+    
+    .settings-link {
+      display: block;
+      text-align: center;
+      padding: 12px;
+      color: #64748b;
+      font-size: 11px;
+      border-top: 1px solid #1e3a5f;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    
+    .settings-link:hover {
+      color: #00d4ff;
+    }
+    
+    .token-input {
+      width: 100%;
+      padding: 8px 12px;
+      background: #0a0f1a;
+      border: 1px solid #1e3a5f;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    
+    .token-input:focus {
+      outline: none;
+      border-color: #00d4ff;
+    }
+    
+    .save-btn {
+      width: 100%;
+      padding: 8px;
+      background: #00d4ff;
+      color: #050810;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    
+    .save-btn:hover {
+      background: #00b8e6;
+    }
+    
+    .footer {
+      padding: 12px 16px;
+      border-top: 1px solid #1e3a5f;
+      text-align: center;
+      font-size: 10px;
+      color: #475569;
+    }
+    
+    .footer a {
+      color: #00d4ff;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">✦</div>
+    <div>
+      <div class="title">GitGalaxy</div>
+      <div class="subtitle">Star History Viewer</div>
+    </div>
+  </div>
+  
+  <div id="content" class="content">
+    <div class="loading">
+      <div class="spinner"></div>
+      <span>Detecting repository...</span>
+    </div>
+  </div>
+  
+  <div class="footer">
+    Powered by <a href="https://motia.dev" target="_blank">Motia</a> · 
+    <a href="https://github.com/MotiaDev/gitgalaxy" target="_blank">GitHub</a>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
+

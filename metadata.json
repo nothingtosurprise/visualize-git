@@ -1,0 +1,5 @@
+{
+  "name": "GitGalaxy",
+  "description": "Visualize GitHub repositories as stunning, interactive force-directed graphs using D3.js and Framer Motion.",
+  "requestFramePermissions": []
+}

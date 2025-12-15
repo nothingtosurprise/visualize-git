@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Icons</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #1a1a1a; color: white; }
+    .icons { display: flex; gap: 20px; flex-wrap: wrap; }
+    .icon-box { text-align: center; }
+    canvas { border: 1px solid #333; }
+    button { margin-top: 20px; padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <h1>GitGalaxy Extension Icons</h1>
+  <p>Right-click each canvas and "Save image as..." to save the PNG files:</p>
+  
+  <div class="icons">
+    <div class="icon-box">
+      <canvas id="icon16" width="16" height="16"></canvas>
+      <p>icon16.png</p>
+    </div>
+    <div class="icon-box">
+      <canvas id="icon48" width="48" height="48"></canvas>
+      <p>icon48.png</p>
+    </div>
+    <div class="icon-box">
+      <canvas id="icon128" width="128" height="128"></canvas>
+      <p>icon128.png</p>
+    </div>
+  </div>
+
+  <script>
+    function drawIcon(canvas) {
+      const ctx = canvas.getContext('2d');
+      const size = canvas.width;
+      const scale = size / 128;
+      
+      // Background gradient
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#0d1424');
+      gradient.addColorStop(1, '#1e3a5f');
+      
+      // Rounded rectangle
+      const radius = 24 * scale;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(size - radius, 0);
+      ctx.quadraticCurveTo(size, 0, size, radius);
+      ctx.lineTo(size, size - radius);
+      ctx.quadraticCurveTo(size, size, size - radius, size);
+      ctx.lineTo(radius, size);
+      ctx.quadraticCurveTo(0, size, 0, size - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      
+      // Star
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      const starCx = 64 * scale;
+      const starCy = 50 * scale;
+      const outerR = 24 * scale;
+      const innerR = 10 * scale;
+      
+      for (let i = 0; i < 5; i++) {
+        const outerAngle = (i * 72 - 90) * Math.PI / 180;
+        const innerAngle = ((i * 72) + 36 - 90) * Math.PI / 180;
+        
+        if (i === 0) {
+          ctx.moveTo(starCx + Math.cos(outerAngle) * outerR, starCy + Math.sin(outerAngle) * outerR);
+        } else {
+          ctx.lineTo(starCx + Math.cos(outerAngle) * outerR, starCy + Math.sin(outerAngle) * outerR);
+        }
+        ctx.lineTo(starCx + Math.cos(innerAngle) * innerR, starCy + Math.sin(innerAngle) * innerR);
+      }
+      ctx.closePath();
+      ctx.fill();
+      
+      // Line chart
+      ctx.strokeStyle = '#00d4ff';
+      ctx.lineWidth = 3 * scale;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(30 * scale, 95 * scale);
+      ctx.lineTo(50 * scale, 80 * scale);
+      ctx.lineTo(70 * scale, 88 * scale);
+      ctx.lineTo(90 * scale, 70 * scale);
+      ctx.lineTo(100 * scale, 85 * scale);
+      ctx.stroke();
+    }
+    
+    drawIcon(document.getElementById('icon16'));
+    drawIcon(document.getElementById('icon48'));
+    drawIcon(document.getElementById('icon128'));
+  </script>
+</body>
+</html>
+
