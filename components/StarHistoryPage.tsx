@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { RepoInfo } from '../types';
 import { 
-  Star, X, TrendingUp, Loader2, ExternalLink, Zap, Plus, Trash2,
-  Download, Copy, Link2, Share2, Image as ImageIcon, FileText,
-  ChevronDown, Check
+  Star, X, TrendingUp, Loader2, ExternalLink, Zap, Plus,
+  Copy, Link2, Share2, Image as ImageIcon, FileText,
+  Check, Sun, Moon
 } from 'lucide-react';
 
 interface StarHistoryPageProps {
@@ -53,10 +53,31 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
   const [logScale, setLogScale] = useState(false);
   const [alignTimeline, setAlignTimeline] = useState(false);
   const [legendPosition, setLegendPosition] = useState<'top-left' | 'bottom-right'>('top-left');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  
+  // Theme colors
+  const colors = useMemo(() => ({
+    bg: theme === 'dark' ? '#050810' : '#ffffff',
+    cardBg: theme === 'dark' ? '#0d1424' : '#f8fafc',
+    border: theme === 'dark' ? '#1e3a5f' : '#e2e8f0',
+    text: theme === 'dark' ? '#ffffff' : '#1e293b',
+    textMuted: theme === 'dark' ? '#64748b' : '#64748b',
+    textSubtle: theme === 'dark' ? '#475569' : '#94a3b8',
+    grid: theme === 'dark' ? '#1e3a5f' : '#e2e8f0',
+    input: theme === 'dark' ? '#0d1424' : '#ffffff',
+    inputBorder: theme === 'dark' ? '#1e3a5f' : '#cbd5e1',
+    hover: theme === 'dark' ? '#1e3a5f' : '#f1f5f9',
+    accent: '#00d4ff',
+    success: '#22c55e',
+    warning: '#fbbf24',
+  }), [theme]);
   
   // Export dropdown
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  
+  // Selected repo for history table (multi-repo mode)
+  const [selectedRepoIndex, setSelectedRepoIndex] = useState(0);
   
   const chartRef = useRef<SVGSVGElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -171,13 +192,21 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
 
   // Remove repo
   const handleRemoveRepo = (fullName: string) => {
-    setRepos(prev => prev.filter(r => r.fullName !== fullName));
+    setRepos(prev => {
+      const newRepos = prev.filter(r => r.fullName !== fullName);
+      // Reset selected index if it's out of bounds
+      if (selectedRepoIndex >= newRepos.length) {
+        setSelectedRepoIndex(Math.max(0, newRepos.length - 1));
+      }
+      return newRepos;
+    });
   };
 
   // Clear all repos
   const handleClearAll = () => {
     if (repos.length > 1) {
       setRepos(prev => [prev[0]]); // Keep the first one
+      setSelectedRepoIndex(0); // Reset selection
     }
   };
 
@@ -243,21 +272,45 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
     });
 
     // Y-axis labels
-    const ySteps = 5;
-    const yLabels = Array.from({ length: ySteps + 1 }).map((_, i) => {
-      let stars: number;
-      if (logScale && maxStars > 0) {
-        const logMax = Math.log10(maxStars);
-        stars = Math.round(Math.pow(10, (logMax / ySteps) * i));
-      } else {
-        stars = Math.round((maxStars / ySteps) * i);
+    const yLabels: { stars: number; y: number; label: string }[] = [];
+    
+    if (logScale && maxStars > 0) {
+      // Use nice powers of 10 for log scale: 1, 10, 100, 1K, 10K, 100K, etc.
+      const maxPower = Math.ceil(Math.log10(maxStars));
+      for (let power = 0; power <= maxPower; power++) {
+        const stars = Math.pow(10, power);
+        if (stars <= maxStars * 1.1) { // Include values up to max
+          let label: string;
+          if (stars >= 1000000) label = `${stars / 1000000}M`;
+          else if (stars >= 1000) label = `${stars / 1000}K`;
+          else label = stars.toString();
+          
+          yLabels.push({
+            stars,
+            y: yScale(stars),
+            label,
+          });
+        }
       }
-      return {
-        stars,
-        y: yScale(stars),
-        label: stars >= 1000 ? `${(stars / 1000).toFixed(stars >= 10000 ? 0 : 1)}k` : stars.toString(),
-      };
-    });
+      // Add the max value if it's significantly different from last power
+      if (maxStars > Math.pow(10, maxPower - 1) * 1.5) {
+        const maxLabel = maxStars >= 1000 
+          ? `${(maxStars / 1000).toFixed(maxStars >= 10000 ? 0 : 1)}K`
+          : maxStars.toString();
+        yLabels.push({ stars: maxStars, y: yScale(maxStars), label: maxLabel });
+      }
+    } else {
+      // Linear scale - use nice round numbers
+      const ySteps = 5;
+      for (let i = 0; i <= ySteps; i++) {
+        const stars = Math.round((maxStars / ySteps) * i);
+        yLabels.push({
+          stars,
+          y: yScale(stars),
+          label: stars >= 1000 ? `${(stars / 1000).toFixed(stars >= 10000 ? 0 : 1)}K` : stars.toString(),
+        });
+      }
+    }
 
     // X-axis labels
     const uniqueDates = [...new Set(allDates)].sort((a, b) => a - b);
@@ -278,7 +331,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
   // Export functions
   const getEmbedCode = () => {
     const repoParams = repos.map(r => r.fullName).join(',');
-    return `[![Star History Chart](https://git-history.com/api/embed/stars?repos=${repoParams}&theme=dark)](https://git-history.com)`;
+    return `[![Star History Chart](https://git-history.com/api/embed/stars?repos=${repoParams}&theme=${theme})](https://git-history.com)`;
   };
 
   const getShareLink = () => {
@@ -329,7 +382,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
     const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     bg.setAttribute('width', '100%');
     bg.setAttribute('height', '100%');
-    bg.setAttribute('fill', '#0d1424');
+    bg.setAttribute('fill', colors.cardBg);
     svgClone.insertBefore(bg, svgClone.firstChild);
     
     // Convert to blob
@@ -354,27 +407,55 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#050810] overflow-auto">
+    <div 
+      className="fixed inset-0 z-50 overflow-auto transition-colors"
+      style={{ backgroundColor: colors.bg }}
+    >
       {/* Header */}
-      <div className="sticky top-0 bg-[#050810]/95 backdrop-blur border-b border-[#1e3a5f] p-3 sm:p-4 flex items-center justify-between gap-2">
+      <div 
+        className="sticky top-0 backdrop-blur border-b p-3 sm:p-4 flex items-center justify-between gap-2 transition-colors"
+        style={{ 
+          backgroundColor: theme === 'dark' ? 'rgba(5, 8, 16, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          borderColor: colors.border 
+        }}
+      >
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
           <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-[#fbbf24] to-[#f59e0b] flex items-center justify-center flex-shrink-0">
             <Star className="text-[#0d1424]" size={20} />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-sm sm:text-xl font-bold text-white flex items-center gap-1 sm:gap-2">
+            <h1 
+              className="text-sm sm:text-xl font-bold flex items-center gap-1 sm:gap-2"
+              style={{ color: colors.text }}
+            >
               <span>Star History</span>
             </h1>
-            <p className="text-xs sm:text-sm text-[#64748b] hidden sm:block">Powered by Motia</p>
+            <p className="text-xs sm:text-sm hidden sm:block" style={{ color: colors.textMuted }}>Powered by Motia</p>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          {/* Theme Toggle */}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded transition-colors"
+            style={{ 
+              backgroundColor: theme === 'dark' ? colors.hover : colors.cardBg,
+              color: colors.textMuted
+            }}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           {repos.length === 1 && (
             <a
               href={`https://github.com/${repos[0].fullName}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-2 px-3 py-2 bg-[#1e3a5f] hover:bg-[#2a4a6f] text-[#00d4ff] text-sm rounded transition-colors"
+              className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm rounded transition-colors"
+              style={{ 
+                backgroundColor: colors.hover,
+                color: colors.accent
+              }}
             >
               <ExternalLink size={14} />
               View on GitHub
@@ -382,7 +463,8 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
           )}
           <button
             onClick={onClose}
-            className="p-2 hover:bg-[#1e3a5f] rounded transition-colors text-[#64748b] hover:text-white"
+            className="p-2 rounded transition-colors"
+            style={{ color: colors.textMuted }}
           >
             <X size={20} />
           </button>
@@ -401,16 +483,27 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                 onChange={(e) => setNewRepoInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddRepo()}
                 placeholder="...add next repository (e.g., facebook/react)"
-                className="w-full px-4 py-3 bg-[#0d1424] border border-[#1e3a5f] rounded-lg text-white placeholder-[#64748b] focus:outline-none focus:border-[#00d4ff] font-mono text-sm"
+                className="w-full px-4 py-3 rounded-lg font-mono text-sm transition-colors focus:outline-none"
+                style={{ 
+                  backgroundColor: colors.input,
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  borderColor: colors.inputBorder,
+                  color: colors.text
+                }}
               />
               {loadingRepo && (
-                <Loader2 size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#00d4ff] animate-spin" />
+                <Loader2 size={18} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin" style={{ color: colors.accent }} />
               )}
             </div>
             <button
               onClick={handleAddRepo}
               disabled={!newRepoInput.trim() || !!loadingRepo}
-              className="px-6 py-3 bg-[#00d4ff] hover:bg-[#00b8e6] disabled:bg-[#1e3a5f] disabled:text-[#64748b] text-[#0d1424] font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="px-6 py-3 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              style={{
+                backgroundColor: !newRepoInput.trim() || !!loadingRepo ? colors.hover : colors.accent,
+                color: !newRepoInput.trim() || !!loadingRepo ? colors.textMuted : '#0d1424'
+              }}
             >
               <Plus size={18} />
               <span className="hidden sm:inline">Add</span>
@@ -420,28 +513,30 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
           {/* Selected Repos */}
           {repos.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              {repos.map((repo, i) => (
+              {repos.map((repo) => (
                 <div
                   key={repo.fullName}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[#0d1424] border border-[#1e3a5f] rounded-full text-sm"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors"
+                  style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border }}
                 >
                   <span 
                     className="w-3 h-3 rounded-full" 
                     style={{ backgroundColor: repo.color }}
                   />
-                  <span className="text-white font-mono">{repo.fullName}</span>
+                  <span className="font-mono" style={{ color: colors.text }}>{repo.fullName}</span>
                   <a
                     href={`https://github.com/${repo.fullName}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#64748b] hover:text-[#00d4ff]"
+                    style={{ color: colors.textMuted }}
                   >
                     <ExternalLink size={12} />
                   </a>
                   {repos.length > 1 && (
                     <button
                       onClick={() => handleRemoveRepo(repo.fullName)}
-                      className="text-[#64748b] hover:text-[#ef4444] ml-1"
+                      className="ml-1 hover:text-[#ef4444]"
+                      style={{ color: colors.textMuted }}
                     >
                       <X size={14} />
                     </button>
@@ -451,7 +546,8 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
               {repos.length > 1 && (
                 <button
                   onClick={handleClearAll}
-                  className="text-sm text-[#64748b] hover:text-white transition-colors"
+                  className="text-sm transition-colors"
+                  style={{ color: colors.textMuted }}
                 >
                   Clear all
                 </button>
@@ -467,7 +563,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
         {/* Chart Controls */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-[#94a3b8] cursor-pointer">
+            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.textMuted }}>
               <input
                 type="checkbox"
                 checked={logScale}
@@ -477,17 +573,17 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
               Log scale
             </label>
             {repos.length > 1 && (
-              <label className="flex items-center gap-2 text-sm text-[#94a3b8] cursor-pointer">
+              <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.textMuted }}>
                 <input
                   type="checkbox"
                   checked={alignTimeline}
                   onChange={(e) => setAlignTimeline(e.target.checked)}
-                  className="w-4 h-4 rounded border-[#1e3a5f] bg-[#0d1424] text-[#00d4ff] focus:ring-[#00d4ff] cursor-pointer"
+                  className="w-4 h-4 rounded cursor-pointer"
                 />
                 Align timeline
               </label>
             )}
-            <div className="flex items-center gap-2 text-sm text-[#94a3b8]">
+            <div className="flex items-center gap-2 text-sm" style={{ color: colors.textMuted }}>
               <span>Legend</span>
               <label className="flex items-center gap-1 cursor-pointer">
                 <input
@@ -515,29 +611,38 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
 
         {loading ? (
           <div className="flex flex-col items-center justify-center h-96">
-            <Loader2 size={48} className="text-[#00d4ff] animate-spin mb-4" />
-            <p className="text-[#64748b]">Loading star history...</p>
+            <Loader2 size={48} className="animate-spin mb-4" style={{ color: colors.accent }} />
+            <p style={{ color: colors.textMuted }}>Loading star history...</p>
           </div>
         ) : repos.length > 0 && (
           <>
             {/* Chart */}
             {chart && (
-              <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-xl p-4 sm:p-6 mb-6 relative">
+              <div 
+                className="rounded-xl p-4 sm:p-6 mb-6 relative transition-colors"
+                style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border }}
+              >
                 {/* Legend */}
                 <div 
-                  className={`absolute z-10 bg-[#0d1424]/90 border border-[#1e3a5f] rounded-lg px-3 py-2 ${
+                  className={`absolute z-10 rounded-lg px-3 py-2 ${
                     legendPosition === 'top-left' ? 'top-4 left-4' : 'bottom-16 right-4'
                   }`}
+                  style={{ 
+                    backgroundColor: theme === 'dark' ? 'rgba(13, 20, 36, 0.9)' : 'rgba(248, 250, 252, 0.9)',
+                    borderWidth: 1, 
+                    borderStyle: 'solid', 
+                    borderColor: colors.border 
+                  }}
                 >
                   {repos.map(repo => (
                     <div key={repo.fullName} className="flex items-center gap-2 text-sm">
                       <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: repo.color }} />
-                      <span className="text-white font-mono">{repo.fullName}</span>
+                      <span className="font-mono" style={{ color: colors.text }}>{repo.fullName}</span>
                     </div>
                   ))}
                 </div>
 
-                <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: colors.text }}>
                   <Star className="text-[#fbbf24]" size={18} />
                   Star History
                 </h2>
@@ -556,7 +661,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                         y1={label.y}
                         x2={chart.width - chart.padding.right}
                         y2={label.y}
-                        stroke="#1e3a5f"
+                        stroke={colors.grid}
                         strokeWidth="1"
                         strokeDasharray="4,4"
                       />
@@ -565,7 +670,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                         y={label.y + 4}
                         textAnchor="end"
                         fontSize="12"
-                        fill="#64748b"
+                        fill={colors.textMuted}
                         fontFamily="ui-monospace, monospace"
                       >
                         {label.label}
@@ -581,7 +686,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                       y={chart.height - chart.padding.bottom + 24}
                       textAnchor="middle"
                       fontSize="11"
-                      fill="#64748b"
+                      fill={colors.textMuted}
                       fontFamily="ui-monospace, monospace"
                     >
                       {label.label}
@@ -634,7 +739,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                             cx={point.x}
                             cy={point.y}
                             r="5"
-                            fill="#0d1424"
+                            fill={colors.cardBg}
                             stroke={repo.color}
                             strokeWidth="2"
                             className="hover:r-7 transition-all cursor-pointer"
@@ -677,7 +782,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                     y={chart.height / 2}
                     textAnchor="middle"
                     fontSize="12"
-                    fill="#475569"
+                    fill={colors.textSubtle}
                     transform={`rotate(-90, ${chart.padding.left - 50}, ${chart.height / 2})`}
                   >
                     GitHub Stars
@@ -687,7 +792,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                     y={chart.height - 10}
                     textAnchor="middle"
                     fontSize="12"
-                    fill="#475569"
+                    fill={colors.textSubtle}
                   >
                     Date
                   </text>
@@ -698,7 +803,7 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                     y={chart.height - chart.padding.bottom - 10}
                     textAnchor="end"
                     fontSize="10"
-                    fill="#475569"
+                    fill={colors.textSubtle}
                     fontFamily="ui-monospace, monospace"
                   >
                     ⭐ git-history.com
@@ -712,28 +817,32 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={downloadImage}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0d1424] border border-[#1e3a5f] hover:border-[#00d4ff] text-white text-sm rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors"
+                  style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border, color: colors.text }}
                 >
                   <ImageIcon size={16} />
                   Image
                 </button>
                 <button
                   onClick={downloadCSV}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0d1424] border border-[#1e3a5f] hover:border-[#00d4ff] text-white text-sm rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors"
+                  style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border, color: colors.text }}
                 >
                   <FileText size={16} />
                   CSV
                 </button>
                 <button
                   onClick={() => copyToClipboard(getEmbedCode(), 'embed')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0d1424] border border-[#1e3a5f] hover:border-[#00d4ff] text-white text-sm rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors"
+                  style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border, color: colors.text }}
                 >
                   {copied === 'embed' ? <Check size={16} className="text-[#22c55e]" /> : <Copy size={16} />}
                   Embed
                 </button>
                 <button
                   onClick={() => copyToClipboard(getShareLink(), 'link')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#0d1424] border border-[#1e3a5f] hover:border-[#00d4ff] text-white text-sm rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors"
+                  style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border, color: colors.text }}
                 >
                   {copied === 'link' ? <Check size={16} className="text-[#22c55e]" /> : <Link2 size={16} />}
                   Link
@@ -749,13 +858,19 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
             </div>
 
             {/* Embed Code Preview */}
-            <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-xl p-4 mb-8">
-              <p className="text-sm text-[#94a3b8] mb-3">
+            <div 
+              className="rounded-xl p-4 mb-8 transition-colors"
+              style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border }}
+            >
+              <p className="text-sm mb-3" style={{ color: colors.textMuted }}>
                 🌟 Show real-time chart on your{' '}
-                <a href="https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes" className="text-[#00d4ff] hover:underline" target="_blank" rel="noopener noreferrer">README.md</a>
+                <a href="https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes" className="hover:underline" style={{ color: colors.accent }} target="_blank" rel="noopener noreferrer">README.md</a>
                 {' '}with the following code:
               </p>
-              <div className="bg-[#050810] rounded-lg p-4 font-mono text-sm text-[#94a3b8] overflow-x-auto">
+              <div 
+                className="rounded-lg p-4 font-mono text-sm overflow-x-auto"
+                style={{ backgroundColor: colors.bg, color: colors.textMuted }}
+              >
                 <code>## Star History</code>
                 <br /><br />
                 <code className="text-[#22c55e]">{getEmbedCode()}</code>
@@ -767,92 +882,140 @@ const StarHistoryPage: React.FC<StarHistoryPageProps> = ({ repoInfo, onClose, to
                 {copied === 'readme' ? <Check size={18} /> : <Copy size={18} />}
                 Copy to GitHub README.md
               </button>
-              <span className="text-xs text-[#64748b] ml-4">(dark theme supported)</span>
+              <span className="text-xs ml-4" style={{ color: colors.textMuted }}>({theme} theme supported)</span>
             </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
-              <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-xl p-6">
+              <div 
+                className="rounded-xl p-6 transition-colors"
+                style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border }}
+              >
                 <div className="flex items-center gap-3 mb-2">
                   <Star className="text-[#fbbf24] fill-[#fbbf24]" size={24} />
-                  <span className="text-3xl font-bold text-white tabular-nums">
+                  <span className="text-3xl font-bold tabular-nums" style={{ color: colors.text }}>
                     {repos.reduce((sum, r) => sum + r.totalStars, 0).toLocaleString()}
                   </span>
                 </div>
-                <p className="text-sm text-[#64748b]">{repos.length > 1 ? 'Combined Stars' : 'Total Stars'}</p>
+                <p className="text-sm" style={{ color: colors.textMuted }}>{repos.length > 1 ? 'Combined Stars' : 'Total Stars'}</p>
               </div>
-              <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-xl p-6">
+              <div 
+                className="rounded-xl p-6 transition-colors"
+                style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border }}
+              >
                 <div className="flex items-center gap-3 mb-2">
                   <TrendingUp className="text-[#22c55e]" size={24} />
-                  <span className="text-3xl font-bold text-white tabular-nums">
+                  <span className="text-3xl font-bold tabular-nums" style={{ color: colors.text }}>
+                    {(() => {
+                      // Calculate combined average growth across all repos
+                      let totalGrowth = 0;
+                      let totalPeriods = 0;
+                      repos.forEach(r => {
+                        if (r.history.length > 1) {
+                          totalGrowth += r.history[r.history.length - 1].stars - r.history[0].stars;
+                          totalPeriods += r.history.length - 1;
+                        }
+                      });
+                      return totalPeriods > 0 ? `+${Math.round(totalGrowth / totalPeriods).toLocaleString()}` : '—';
+                    })()}
+                  </span>
+                </div>
+                <p className="text-sm" style={{ color: colors.textMuted }}>{repos.length > 1 ? 'Avg Growth/Period (All)' : 'Avg Growth/Period'}</p>
+              </div>
+              <div 
+                className="rounded-xl p-6 transition-colors"
+                style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border }}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <Zap style={{ color: colors.accent }} size={24} />
+                  <span className="text-lg font-bold" style={{ color: colors.text }}>
                     {repos.length}
                   </span>
                 </div>
-                <p className="text-sm text-[#64748b]">Repositories</p>
-              </div>
-              <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <Zap className="text-[#00d4ff]" size={24} />
-                  <span className="text-lg font-bold text-white">
-                    {repos[0]?.history?.length > 1
-                      ? new Date(repos[0].history[0].date).toLocaleDateString()
-                      : 'Today'}
-                  </span>
-                </div>
-                <p className="text-sm text-[#64748b]">First Tracked</p>
+                <p className="text-sm" style={{ color: colors.textMuted }}>Repositories</p>
               </div>
             </div>
 
-            {/* History Table (for first repo) */}
-            {repos[0] && repos[0].history.length > 1 && (
-              <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-xl overflow-hidden">
-                <div className="p-4 border-b border-[#1e3a5f]">
-                  <h2 className="text-lg font-semibold text-white">History Data - {repos[0].fullName}</h2>
+            {/* History Table with repo selector for multi-repo */}
+            {repos.length > 0 && repos.some(r => r.history.length > 1) && (
+              <div 
+                className="rounded-xl overflow-hidden transition-colors"
+                style={{ backgroundColor: colors.cardBg, borderWidth: 1, borderStyle: 'solid', borderColor: colors.border }}
+              >
+                <div className="p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: colors.border }}>
+                  <h2 className="text-lg font-semibold" style={{ color: colors.text }}>History Data</h2>
+                  {repos.length > 1 && (
+                    <div className="flex flex-wrap gap-2">
+                      {repos.map((repo, idx) => (
+                        <button
+                          key={repo.fullName}
+                          onClick={() => setSelectedRepoIndex(idx)}
+                          className="px-3 py-1 text-sm rounded-full font-mono transition-colors"
+                          style={{
+                            backgroundColor: selectedRepoIndex === idx ? repo.color : 'transparent',
+                            color: selectedRepoIndex === idx ? '#0d1424' : colors.textMuted,
+                            borderWidth: 1,
+                            borderStyle: 'solid',
+                            borderColor: repo.color
+                          }}
+                        >
+                          {repo.repo}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="max-h-64 overflow-y-auto">
-                  <table className="w-full">
-                    <thead className="bg-[#0a0f1a] sticky top-0">
-                      <tr>
-                        <th className="text-left p-3 text-xs text-[#64748b] font-medium">Date</th>
-                        <th className="text-right p-3 text-xs text-[#64748b] font-medium">Stars</th>
-                        <th className="text-right p-3 text-xs text-[#64748b] font-medium">Growth</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...repos[0].history].reverse().map((point, i, arr) => {
-                        const prevStars = arr[i + 1]?.stars || 0;
-                        const growth = point.stars - prevStars;
-                        return (
-                          <tr key={i} className="border-t border-[#1e3a5f]/50 hover:bg-[#1e3a5f]/20">
-                            <td className="p-3 text-sm text-[#e2e8f0] font-mono">
-                              {new Date(point.date).toLocaleDateString()}
-                            </td>
-                            <td className="p-3 text-sm text-right font-mono" style={{ color: repos[0].color }}>
-                              {point.stars.toLocaleString()}
-                            </td>
-                            <td className="p-3 text-sm text-right font-mono">
-                              {growth > 0 && (
-                                <span className="text-[#22c55e]">+{growth.toLocaleString()}</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                {repos[selectedRepoIndex] && repos[selectedRepoIndex].history.length > 1 && (
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="w-full">
+                      <thead style={{ backgroundColor: colors.bg }} className="sticky top-0">
+                        <tr>
+                          <th className="text-left p-3 text-xs font-medium" style={{ color: colors.textMuted }}>Date</th>
+                          <th className="text-right p-3 text-xs font-medium" style={{ color: colors.textMuted }}>Stars</th>
+                          <th className="text-right p-3 text-xs font-medium" style={{ color: colors.textMuted }}>Growth</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...repos[selectedRepoIndex].history].reverse().map((point, i, arr) => {
+                          const prevStars = arr[i + 1]?.stars || 0;
+                          const growth = point.stars - prevStars;
+                          return (
+                            <tr 
+                              key={i} 
+                              className="transition-colors"
+                              style={{ borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: `${colors.border}50` }}
+                            >
+                              <td className="p-3 text-sm font-mono" style={{ color: colors.text }}>
+                                {new Date(point.date).toLocaleDateString()}
+                              </td>
+                              <td className="p-3 text-sm text-right font-mono" style={{ color: repos[selectedRepoIndex].color }}>
+                                {point.stars.toLocaleString()}
+                              </td>
+                              <td className="p-3 text-sm text-right font-mono">
+                                {growth > 0 && (
+                                  <span className="text-[#22c55e]">+{growth.toLocaleString()}</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Footer */}
-            <div className="mt-8 text-center text-sm text-[#475569]">
+            <div className="mt-8 text-center text-sm" style={{ color: colors.textSubtle }}>
               <p>
                 Powered by{' '}
                 <a
                   href="https://motia.dev"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#00d4ff] hover:underline font-medium"
+                  className="hover:underline font-medium"
+                  style={{ color: colors.accent }}
                 >
                   Motia
                 </a>
