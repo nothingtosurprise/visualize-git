@@ -60,12 +60,18 @@ const Visualizer: React.FC<VisualizerProps> = ({
   const [transform, setTransform] = useState<d3.ZoomTransform>(d3.zoomIdentity);
   const [hoveredPath, setHoveredPath] = useState<Set<string>>(new Set());
 
-  // Generate random stars for background
+  // Generate random stars for background - use larger area to handle zoom out
   const stars = useMemo(() => {
-    return Array.from({ length: 300 }).map((_, i) => ({
+    // Create stars in a much larger area (5x) to handle zoom out without clipping
+    const starAreaWidth = dimensions.width * 5;
+    const starAreaHeight = dimensions.height * 5;
+    const offsetX = -dimensions.width * 2;
+    const offsetY = -dimensions.height * 2;
+    
+    return Array.from({ length: 500 }).map((_, i) => ({
       id: i,
-      x: Math.random() * dimensions.width,
-      y: Math.random() * dimensions.height,
+      x: offsetX + Math.random() * starAreaWidth,
+      y: offsetY + Math.random() * starAreaHeight,
       r: Math.random() * 1.2 + 0.2,
       opacity: Math.random() * 0.6 + 0.1,
       blink: Math.random() > 0.85
@@ -355,6 +361,17 @@ const Visualizer: React.FC<VisualizerProps> = ({
       .call(zoomRef.current.transform, d3.zoomIdentity.translate(dimensions.width / 2, dimensions.height / 2).scale(0.75));
   }, [dimensions]);
 
+  // Calculate extended bounds for zoom-out scenarios
+  const extendedBounds = useMemo(() => {
+    const extend = 5; // 5x the viewport in each direction
+    return {
+      x: -dimensions.width * (extend / 2),
+      y: -dimensions.height * (extend / 2),
+      width: dimensions.width * extend,
+      height: dimensions.height * extend,
+    };
+  }, [dimensions]);
+
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-[#050810]">
       <svg 
@@ -362,6 +379,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
         className="w-full h-full"
         width={dimensions.width}
         height={dimensions.height}
+        style={{ overflow: 'visible' }}
       >
         <defs>
           <radialGradient id="space-bg" cx="50%" cy="50%" r="80%">
@@ -370,8 +388,19 @@ const Visualizer: React.FC<VisualizerProps> = ({
             <stop offset="100%" stopColor="#050810" />
           </radialGradient>
         </defs>
+        
+        {/* Extended background that covers zoom-out scenarios */}
+        <rect 
+          x={extendedBounds.x} 
+          y={extendedBounds.y} 
+          width={extendedBounds.width} 
+          height={extendedBounds.height} 
+          fill="#050810" 
+          style={{ pointerEvents: 'none' }} 
+        />
         <rect width="100%" height="100%" fill="url(#space-bg)" style={{ pointerEvents: 'none' }} />
         
+        {/* Stars - positioned in extended area */}
         <g style={{ pointerEvents: 'none' }}>
           {stars.map((star) => (
                   <circle 
