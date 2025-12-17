@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { RepoData, RepoInfo, RepoNode } from './types';
-import { fetchRepoDetails, fetchRepoTree, watchRepo, subscribeToRepoUpdates, RepoUpdate } from './services/githubService';
+import { fetchRepoDetails, fetchRepoTree, watchRepo, subscribeToRepoUpdates, RepoUpdate, fetchCommits, CommitData } from './services/githubService';
 import Visualizer from './components/Visualizer';
 import Controls from './components/Controls';
 import Sidebar from './components/Sidebar';
@@ -8,7 +8,11 @@ import SearchBar from './components/SearchBar';
 import StarAnimation from './components/StarAnimation';
 import StarHistoryPage from './components/StarHistoryPage';
 import { GitCommit, RefreshCw, Radio, Menu, X } from 'lucide-react';
-import { Analytics } from '@vercel/analytics/react';
+
+// Lazy load Analytics to avoid import errors in development
+const Analytics = lazy(() => 
+  import('@vercel/analytics/react').then(mod => ({ default: mod.Analytics })).catch(() => ({ default: () => null }))
+);
 
 const STORAGE_KEY = 'gitgalaxy_repo';
 const TOKEN_KEY = 'gitgalaxy_token';
@@ -28,6 +32,8 @@ const App: React.FC = () => {
   const [showStarHistoryPage, setShowStarHistoryPage] = useState(false);
   const [currentToken, setCurrentToken] = useState<string>('');
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [commits, setCommits] = useState<CommitData[]>([]);
+  const [isLoadingCommits, setIsLoadingCommits] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const hasAutoLoaded = useRef(false);
 
@@ -66,6 +72,7 @@ const App: React.FC = () => {
     setHighlightedNodes(new Set());
     setFocusNode(null);
     setCurrentToken(token); // Store token for star history
+    setCommits([]); // Clear commits for timeline
 
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
@@ -154,11 +161,30 @@ const App: React.FC = () => {
     setHighlightedNodes(new Set([node.id]));
   }, []);
 
+  const handleLoadCommits = useCallback(async () => {
+    if (!repoInfo || isLoadingCommits) return;
+    
+    setIsLoadingCommits(true);
+    try {
+      const [owner, repo] = repoInfo.fullName.split('/');
+      const result = await fetchCommits(owner, repo, currentToken);
+      setCommits(result.commits);
+    } catch (err) {
+      console.error('Failed to load commits:', err);
+    } finally {
+      setIsLoadingCommits(false);
+    }
+  }, [repoInfo, currentToken, isLoadingCommits]);
+
   return (
     <div className="flex h-screen w-full bg-[#050810] text-[#e2e8f0] overflow-hidden font-mono">
       
       {/* Vercel Web Analytics */}
-      <Analytics />
+      {import.meta.env.PROD && (
+        <Suspense fallback={null}>
+          <Analytics />
+        </Suspense>
+      )}
       
       {/* Star Animation Overlay */}
       <StarAnimation starCount={repoInfo?.stars || 0} isActive={showStarAnimation} />
@@ -218,6 +244,9 @@ const App: React.FC = () => {
                  onNodeSelect={setSelectedNode} 
               highlightedNodes={highlightedNodes}
               focusNode={focusNode}
+              commits={commits}
+              isLoadingCommits={isLoadingCommits}
+              onLoadCommits={handleLoadCommits}
                />
            ) : (
             <div className="w-full h-full flex flex-col items-center justify-center">

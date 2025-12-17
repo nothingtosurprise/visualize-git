@@ -179,3 +179,54 @@ export const fetchStarHistory = async (
 
   return response.json()
 }
+
+// Commit history for timeline animation
+export interface CommitFile {
+  filename: string
+  status: 'added' | 'removed' | 'modified' | 'renamed'
+  additions: number
+  deletions: number
+}
+
+export interface CommitData {
+  sha: string
+  message: string
+  date: string
+  author: {
+    name: string
+    email: string
+    avatar: string
+  }
+  files: CommitFile[]
+}
+
+export interface CommitsResponse {
+  commits: CommitData[]
+  total: number
+  hasMore: boolean
+}
+
+export const fetchCommits = async (
+  owner: string,
+  repo: string,
+  token?: string,
+  perPage: number = 100,
+  page: number = 1
+): Promise<CommitsResponse> => {
+  const params = new URLSearchParams()
+  if (token) {
+    params.set('token', token)
+  }
+  params.set('perPage', perPage.toString())
+  params.set('page', page.toString())
+
+  const url = `${API_BASE}/api/github/commits/${owner}/${repo}?${params}`
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }))
+    throw new Error(error.error || 'Failed to fetch commits')
+  }
+
+  return response.json()
+}

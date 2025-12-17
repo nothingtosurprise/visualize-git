@@ -21,6 +21,7 @@ declare module 'motia' {
     'FetchStarHistoryEvent': EventHandler<{ owner: string; repo: string; token?: string }, never>
     'EmbedStarHistory': ApiRouteHandler<Record<string, unknown>, unknown, never>
     'EmbedStarBadge': ApiRouteHandler<Record<string, unknown>, unknown, never>
+    'Get Commits': ApiRouteHandler<Record<string, unknown>, unknown, never>
   }
     
 }

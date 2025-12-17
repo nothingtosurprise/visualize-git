@@ -1,17 +1,23 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
 import { RepoData, RepoNode, RepoLink } from '../types';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Circle, GitBranch, History, X, Layers } from 'lucide-react';
+import TimelinePlayer, { CommitData } from './TimelinePlayer';
 
 interface VisualizerProps {
   data: RepoData;
   onNodeSelect: (node: RepoNode) => void;
   highlightedNodes?: Set<string>;
   focusNode?: RepoNode | null;
+  commits?: CommitData[];
+  isLoadingCommits?: boolean;
+  onLoadCommits?: () => void;
 }
 
-// Get node color based on extension
-const getNodeColor = (node: RepoNode): string => {
+type LayoutMode = 'force' | 'pack';
+
+// ORIGINAL Force mode colors (simple, clean palette)
+const getForceNodeColor = (node: RepoNode): string => {
   if (node.id === 'ROOT') return '#00d4ff';
   if (node.type === 'tree') return '#3b82f6';
 
@@ -30,6 +36,65 @@ const getNodeColor = (node: RepoNode): string => {
   }
 };
 
+// GitHub Next-style VIBRANT color palette for Pack mode only
+const PACK_FILE_COLORS: Record<string, string> = {
+  // TypeScript - Bright Blue
+  'ts': '#3b82f6',
+  'tsx': '#60a5fa',
+  // JavaScript - Bright Yellow  
+  'js': '#facc15',
+  'jsx': '#fde047',
+  'mjs': '#eab308',
+  'cjs': '#ca8a04',
+  // Styles - Pink/Magenta
+  'css': '#ec4899',
+  'scss': '#f472b6',
+  'sass': '#db2777',
+  'less': '#be185d',
+  // HTML/Templates - Orange
+  'html': '#f97316',
+  'vue': '#22c55e',
+  'svelte': '#ef4444',
+  // Config/Data - Teal/Cyan
+  'json': '#06b6d4',
+  'yml': '#14b8a6',
+  'yaml': '#14b8a6',
+  'toml': '#0d9488',
+  // Docs - Purple
+  'md': '#a855f7',
+  'mdx': '#c084fc',
+  // Python - Green
+  'py': '#22c55e',
+  // Go - Cyan
+  'go': '#06b6d4',
+  // Rust - Orange/Red
+  'rs': '#f97316',
+  // Java/Kotlin - Orange
+  'java': '#f59e0b',
+  'kt': '#fbbf24',
+  // Ruby - Red
+  'rb': '#ef4444',
+  // PHP - Indigo
+  'php': '#6366f1',
+  // Shell
+  'sh': '#84cc16',
+  // Images
+  'png': '#8b5cf6',
+  'svg': '#a78bfa',
+  'gif': '#6d28d9',
+  // Default
+  'default': '#94a3b8',
+};
+
+// Get Pack mode vibrant color (GitHub Next style)
+const getPackNodeColor = (node: RepoNode): string => {
+  if (node.id === 'ROOT') return '#00d4ff';
+  if (node.type === 'tree') return '#1e293b'; // Dark folders
+  
+  const ext = node.extension?.toLowerCase() || 'default';
+  return PACK_FILE_COLORS[ext] || PACK_FILE_COLORS['default'];
+};
+
 // Get node size based on type and file size
 const getNodeSize = (node: RepoNode): number => {
   if (node.id === 'ROOT') return 18;
@@ -43,11 +108,34 @@ const getNodeSize = (node: RepoNode): number => {
   return 4;
 };
 
+// Build hierarchy from flat nodes for circle packing
+const buildHierarchy = (nodes: RepoNode[]): d3.HierarchyNode<RepoNode> => {
+  const nodeMap = new Map<string, RepoNode>();
+  nodes.forEach(n => nodeMap.set(n.id, { ...n, children: [] as RepoNode[] }));
+  
+  const root = nodeMap.get('ROOT')!;
+  
+  nodes.forEach(n => {
+    if (n.parentId && nodeMap.has(n.parentId)) {
+      const parent = nodeMap.get(n.parentId)!;
+      if (!parent.children) parent.children = [];
+      (parent.children as RepoNode[]).push(nodeMap.get(n.id)!);
+    }
+  });
+  
+  return d3.hierarchy(root)
+    .sum(d => d.type === 'blob' ? Math.max(d.size || 100, 100) : 0)
+    .sort((a, b) => (b.value || 0) - (a.value || 0));
+};
+
 const Visualizer: React.FC<VisualizerProps> = ({ 
   data, 
   onNodeSelect, 
   highlightedNodes = new Set(),
-  focusNode 
+  focusNode,
+  commits = [],
+  isLoadingCommits = false,
+  onLoadCommits,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -59,10 +147,15 @@ const Visualizer: React.FC<VisualizerProps> = ({
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [transform, setTransform] = useState<d3.ZoomTransform>(d3.zoomIdentity);
   const [hoveredPath, setHoveredPath] = useState<Set<string>>(new Set());
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('force');
+  const [hoveredNode, setHoveredNode] = useState<RepoNode | null>(null);
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [showLayoutToggle, setShowLayoutToggle] = useState(false); // Hidden by default
+  const [activeFiles, setActiveFiles] = useState<Set<string>>(new Set());
+  const [currentCommit, setCurrentCommit] = useState<CommitData | null>(null);
 
-  // Generate random stars for background - use larger area to handle zoom out
+  // Generate random stars for background
   const stars = useMemo(() => {
-    // Create stars in a much larger area (5x) to handle zoom out without clipping
     const starAreaWidth = dimensions.width * 5;
     const starAreaHeight = dimensions.height * 5;
     const offsetX = -dimensions.width * 2;
@@ -122,12 +215,13 @@ const Visualizer: React.FC<VisualizerProps> = ({
     svg.call(zoom);
     zoomRef.current = zoom;
 
-    svg.call(zoom.transform, d3.zoomIdentity.translate(dimensions.width / 2, dimensions.height / 2).scale(0.75));
+    const initialScale = layoutMode === 'pack' ? 0.9 : 0.75;
+    svg.call(zoom.transform, d3.zoomIdentity.translate(dimensions.width / 2, dimensions.height / 2).scale(initialScale));
 
     return () => {
       svg.on('.zoom', null);
     };
-  }, [dimensions]);
+  }, [dimensions, layoutMode]);
 
   // Focus on a specific node
   useEffect(() => {
@@ -145,7 +239,126 @@ const Visualizer: React.FC<VisualizerProps> = ({
     }
   }, [focusNode, dimensions]);
 
-  useEffect(() => {
+  // New Improved Circle Packing Layout (Monaspace/GitHub Next inspired)
+  const renderPackLayout = useCallback(() => {
+    if (!data.nodes.length || !gRef.current) return;
+    
+    const g = d3.select(gRef.current);
+    g.selectAll('*').remove();
+    
+    const hierarchy = buildHierarchy(data.nodes);
+    
+    // Generous margins to avoid any header overlap
+    const topMargin = 280;
+    const bottomMargin = 100;
+    const sideMargin = 50;
+    
+    const availableHeight = dimensions.height - topMargin - bottomMargin;
+    const availableWidth = dimensions.width - (sideMargin * 2);
+    const size = Math.min(availableWidth, availableHeight);
+    
+    // More padding between circles for clean look
+    const pack = d3.pack<RepoNode>()
+      .size([size, size])
+      .padding(d => d.depth === 0 ? 20 : 8);
+    
+    const root = pack(hierarchy);
+    
+    // Position: Center horizontally, push down below header
+    const offsetX = -size / 2;
+    const offsetY = (topMargin + size / 2) - (dimensions.height / 2);
+    
+    const allNodes = root.descendants();
+    
+    // Draw Nodes
+    const nodeGroups = g.selectAll<SVGGElement, d3.HierarchyCircularNode<RepoNode>>('.pack-node')
+      .data(allNodes)
+      .enter()
+      .append('g')
+      .attr('class', 'pack-node')
+      .attr('transform', d => `translate(${d.x + offsetX},${d.y + offsetY})`)
+      .attr('cursor', 'pointer');
+
+    // Update position map for animations
+    allNodes.forEach(d => {
+      nodesMapRef.current.set(d.data.id, { x: d.x + offsetX, y: d.y + offsetY });
+    });
+
+    // Root: Dark background with dashed border
+    nodeGroups.filter(d => d.children && d.depth === 0)
+      .append('circle')
+      .attr('r', d => d.r)
+      .attr('fill', '#050810')
+      .attr('stroke', '#334155')
+      .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', '4 4')
+      .attr('opacity', 0.8);
+
+    // Inner Folders - subtle
+    nodeGroups.filter(d => d.children && d.depth > 0)
+      .append('circle')
+      .attr('r', d => d.r)
+      .attr('fill', '#1e293b')
+      .attr('fill-opacity', 0.1)
+      .attr('stroke', '#475569')
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.3);
+
+    // Files - vibrant dots
+    nodeGroups.filter(d => !d.children)
+      .append('circle')
+      .attr('r', d => Math.max(2, d.r - 1.5))
+      .attr('fill', d => getPackNodeColor(d.data))
+      .attr('fill-opacity', 1)
+      .attr('stroke', 'none');
+
+    // Labels for significant groups
+    nodeGroups.filter(d => d.children && d.r > 40)
+      .each(function(d) {
+        const isRoot = d.depth === 0;
+        d3.select(this).append('text')
+          .attr('dy', isRoot ? d.r + 25 : -d.r + 15)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', isRoot ? '16px' : '10px')
+          .attr('font-weight', isRoot ? '600' : '500')
+          .attr('fill', isRoot ? '#00d4ff' : '#94a3b8')
+          .attr('pointer-events', 'none')
+          .style('text-shadow', '0 1px 4px rgba(0,0,0,0.8)')
+          .text(d.data.name);
+      });
+
+    // Hover interactions
+    nodeGroups
+      .on('mouseenter', function(event, d) {
+        setHoveredNode(d.data);
+        const circle = d3.select(this).select('circle');
+        if (d.children) {
+          circle.attr('stroke', '#00d4ff').attr('stroke-opacity', 1).attr('stroke-width', 2);
+        } else {
+          circle.attr('r', Math.max(2, d.r - 1.5) + 2).attr('stroke', '#fff').attr('stroke-width', 2);
+        }
+      })
+      .on('mouseleave', function(event, d) {
+        setHoveredNode(null);
+        const circle = d3.select(this).select('circle');
+        if (d.children) {
+          if (d.depth === 0) {
+            circle.attr('stroke', '#334155').attr('stroke-width', 1.5);
+          } else {
+            circle.attr('stroke', '#475569').attr('stroke-opacity', 0.3).attr('stroke-width', 1);
+          }
+        } else {
+          circle.attr('r', Math.max(2, d.r - 1.5)).attr('stroke', 'none');
+        }
+      })
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        onNodeSelect(d.data);
+      });
+  }, [data, dimensions, onNodeSelect]);
+
+  // Force-Directed Layout
+  const renderForceLayout = useCallback(() => {
     if (!data.nodes.length || !gRef.current) return;
 
     if (simulationRef.current) {
@@ -164,10 +377,10 @@ const Visualizer: React.FC<VisualizerProps> = ({
         .distance(35)
         .strength(0.5))
       .force('charge', d3.forceManyBody()
-        .strength(-90)  // More repulsion for spacing
+        .strength(-90)
         .distanceMax(180))
       .force('center', d3.forceCenter(0, 0))
-      .force('collision', d3.forceCollide().radius(d => getNodeSize(d as RepoNode) + 5))  // More collision padding
+      .force('collision', d3.forceCollide().radius(d => getNodeSize(d as RepoNode) + 5))
       .force('x', d3.forceX(0).strength(0.03))
       .force('y', d3.forceY(0).strength(0.03));
 
@@ -208,19 +421,19 @@ const Visualizer: React.FC<VisualizerProps> = ({
 
     // Circles
     node.each(function(d) {
-      const color = getNodeColor(d);
+      const color = getForceNodeColor(d);
       const size = getNodeSize(d);
-      const g = d3.select(this);
+      const nodeG = d3.select(this);
       
       if (d.id === 'ROOT') {
-        g.append('circle')
+        nodeG.append('circle')
           .attr('class', 'glow')
           .attr('r', size + 6)
           .attr('fill', color)
           .attr('opacity', 0.15);
       }
       
-      g.append('circle')
+      nodeG.append('circle')
         .attr('class', 'node-circle')
         .attr('r', size)
         .attr('fill', color)
@@ -242,12 +455,13 @@ const Visualizer: React.FC<VisualizerProps> = ({
       .attr('font-family', 'ui-monospace, monospace')
       .attr('pointer-events', 'none');
 
-    // Hover interactions with path highlighting
+    // Hover interactions
     node
       .on('mouseenter', function(event, d) {
         const size = getNodeSize(d);
         const pathNodes = getPathToRoot(d.id, simNodes);
         setHoveredPath(pathNodes);
+        setHoveredNode(d);
         
         d3.select(this).select('.node-circle')
           .transition()
@@ -271,6 +485,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
       .on('mouseleave', function(event, d) {
         const size = getNodeSize(d);
         setHoveredPath(new Set());
+        setHoveredNode(null);
         
         d3.select(this).select('.node-circle')
           .transition()
@@ -284,7 +499,6 @@ const Visualizer: React.FC<VisualizerProps> = ({
       });
 
     simulation.on('tick', () => {
-      // Update node positions map
       simNodes.forEach(n => {
         nodesMapRef.current.set(n.id, { x: n.x || 0, y: n.y || 0 });
       });
@@ -303,13 +517,23 @@ const Visualizer: React.FC<VisualizerProps> = ({
     };
   }, [data, onNodeSelect, getPathToRoot]);
 
-  // Update highlighting based on search/hover
+  // Render based on layout mode
   useEffect(() => {
-    if (!gRef.current) return;
+    if (layoutMode === 'pack') {
+      renderPackLayout();
+    } else {
+      renderForceLayout();
+    }
+  }, [layoutMode, renderPackLayout, renderForceLayout]);
+
+  // Update highlighting based on search/hover (force layout only)
+  useEffect(() => {
+    if (!gRef.current || layoutMode !== 'force') return;
     const g = d3.select(gRef.current);
     
     const hasHighlight = highlightedNodes.size > 0;
     const hasHover = hoveredPath.size > 0;
+    const hasActiveFiles = activeFiles.size > 0;
     
     g.selectAll('.node-group').each(function(d: any) {
       if (!d || !d.id) return;
@@ -317,10 +541,32 @@ const Visualizer: React.FC<VisualizerProps> = ({
       const isHighlighted = highlightedNodes.has(d.id);
       const isInPath = hoveredPath.has(d.id);
       
+      // Check if file was recently changed (for heatmap effect)
+      const isActiveFile = d.path && activeFiles.has(d.path);
+      
       let opacity = 1;
       if (hasHighlight && !isHighlighted) opacity = 0.2;
       if (hasHover && !isInPath) opacity = 0.3;
-      if (isInPath || isHighlighted) opacity = 1;
+      if (hasActiveFiles && !isActiveFile && d.type === 'blob') opacity = 0.25;
+      if (isInPath || isHighlighted || isActiveFile) opacity = 1;
+      
+      // Add glow effect for active files
+      const circle = d3.select(this).select('.node-circle');
+      if (isActiveFile) {
+        circle
+          .transition()
+          .duration(300)
+          .attr('stroke', '#f59e0b')
+          .attr('stroke-width', 3)
+          .attr('filter', 'url(#glow)');
+      } else {
+        circle
+          .transition()
+          .duration(300)
+          .attr('stroke', d.id === 'ROOT' ? '#00d4ff' : 'transparent')
+          .attr('stroke-width', d.id === 'ROOT' ? 2 : 0)
+          .attr('filter', null);
+      }
       
       d3.select(this)
         .transition()
@@ -343,7 +589,102 @@ const Visualizer: React.FC<VisualizerProps> = ({
         .attr('stroke-width', isInPath ? 1.5 : 0.8)
         .attr('stroke-opacity', isInPath ? 1 : 0.5);
     });
-  }, [highlightedNodes, hoveredPath]);
+  }, [highlightedNodes, hoveredPath, layoutMode, activeFiles]);
+
+  // Gource-style live commit animation
+  useEffect(() => {
+    if (!currentCommit || !gRef.current || !svgRef.current || !zoomRef.current) return;
+
+    const g = d3.select(gRef.current);
+    const svg = d3.select(svgRef.current);
+    
+    // Get current transform to calculate positions
+    const transform = d3.zoomTransform(svgRef.current);
+    
+    // Author position (bottom-left where the avatar UI is)
+    // We project screen coordinates to SVG coordinates
+    // Avatar is at roughly (60, height - 220)
+    const screenX = 60;
+    const screenY = dimensions.height - 220;
+    const [startX, startY] = transform.invert([screenX, screenY]);
+
+    currentCommit.files.forEach(file => {
+      // Find the node for this file
+      let targetNode: { x: number, y: number } | undefined;
+      
+      if (layoutMode === 'force') {
+        // For force layout, we need to find the node in the data
+        const node = data.nodes.find(n => n.path === file.filename);
+        if (node && (node as any).x !== undefined) {
+          targetNode = { x: (node as any).x, y: (node as any).y };
+        }
+      } else {
+        // For pack layout, use the map
+        // Need to find ID from path... this is tricky without a reverse map
+        // We'll search the nodesMapRef values? No, keys are IDs.
+        // Let's iterate nodes to find ID matching path
+        const node = data.nodes.find(n => n.path === file.filename);
+        if (node) {
+          targetNode = nodesMapRef.current.get(node.id);
+        }
+      }
+
+      if (targetNode) {
+        // Create projectile
+        const projectile = g.append('circle')
+          .attr('cx', startX)
+          .attr('cy', startY)
+          .attr('r', 3)
+          .attr('fill', '#f59e0b') // Amber/Gold color
+          .attr('filter', 'url(#glow)')
+          .attr('opacity', 0.8);
+
+        // Animate projectile
+        projectile.transition()
+          .duration(400)
+          .ease(d3.easeLinear)
+          .attr('cx', targetNode.x)
+          .attr('cy', targetNode.y)
+          .on('end', function() {
+            // Remove projectile
+            d3.select(this).remove();
+            
+            // Create explosion/pulse effect at target
+            const explosion = g.append('circle')
+              .attr('cx', targetNode!.x)
+              .attr('cy', targetNode!.y)
+              .attr('r', 2)
+              .attr('fill', 'none')
+              .attr('stroke', '#f59e0b')
+              .attr('stroke-width', 2)
+              .attr('opacity', 1);
+            
+            explosion.transition()
+              .duration(500)
+              .ease(d3.easeOut)
+              .attr('r', 20)
+              .attr('opacity', 0)
+              .attr('stroke-width', 0)
+              .remove();
+              
+            // Add a temporary beam line
+            const beam = g.append('line')
+              .attr('x1', startX)
+              .attr('y1', startY)
+              .attr('x2', targetNode!.x)
+              .attr('y2', targetNode!.y)
+              .attr('stroke', '#f59e0b')
+              .attr('stroke-width', 1)
+              .attr('opacity', 0.4);
+              
+            beam.transition()
+              .duration(200)
+              .attr('opacity', 0)
+              .remove();
+          });
+      }
+    });
+  }, [currentCommit, dimensions, layoutMode, data]);
 
   const handleZoomIn = useCallback(() => {
     if (!svgRef.current || !zoomRef.current) return;
@@ -357,13 +698,14 @@ const Visualizer: React.FC<VisualizerProps> = ({
 
   const handleReset = useCallback(() => {
     if (!svgRef.current || !zoomRef.current) return;
+    const initialScale = layoutMode === 'pack' ? 0.9 : 0.75;
     d3.select(svgRef.current).transition().duration(300)
-      .call(zoomRef.current.transform, d3.zoomIdentity.translate(dimensions.width / 2, dimensions.height / 2).scale(0.75));
-  }, [dimensions]);
+      .call(zoomRef.current.transform, d3.zoomIdentity.translate(dimensions.width / 2, dimensions.height / 2).scale(initialScale));
+  }, [dimensions, layoutMode]);
 
-  // Calculate extended bounds for zoom-out scenarios
+  // Extended bounds for zoom-out
   const extendedBounds = useMemo(() => {
-    const extend = 5; // 5x the viewport in each direction
+    const extend = 5;
     return {
       x: -dimensions.width * (extend / 2),
       y: -dimensions.height * (extend / 2),
@@ -387,9 +729,16 @@ const Visualizer: React.FC<VisualizerProps> = ({
             <stop offset="60%" stopColor="#0a0f1a" />
             <stop offset="100%" stopColor="#050810" />
           </radialGradient>
+          {/* Glow filter for active files (heatmap) */}
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
         </defs>
         
-        {/* Extended background that covers zoom-out scenarios */}
         <rect 
           x={extendedBounds.x} 
           y={extendedBounds.y} 
@@ -400,10 +749,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
         />
         <rect width="100%" height="100%" fill="url(#space-bg)" style={{ pointerEvents: 'none' }} />
         
-        {/* Stars - positioned in extended area */}
         <g style={{ pointerEvents: 'none' }}>
           {stars.map((star) => (
-                  <circle 
+            <circle 
               key={star.id}
               cx={star.x}
               cy={star.y}
@@ -419,6 +767,114 @@ const Visualizer: React.FC<VisualizerProps> = ({
         <g ref={gRef} style={{ pointerEvents: 'all' }} />
       </svg>
       
+      {/* View Options - Compact toggle in top-left */}
+      <div className="absolute top-4 left-4 z-50 flex items-center gap-2" style={{ pointerEvents: 'auto' }}>
+        {/* Simple view mode toggle - only show when expanded */}
+        {showLayoutToggle ? (
+          <div className="flex gap-1 bg-[#0d1424] border border-[#1e3a5f] rounded-lg p-1 shadow-lg">
+            <button 
+              onClick={() => setLayoutMode('force')}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                layoutMode === 'force' 
+                  ? 'bg-[#00d4ff] text-[#0d1424]' 
+                  : 'text-[#64748b] hover:text-white hover:bg-[#1e3a5f]'
+              }`}
+              title="Force-directed graph (default)"
+            >
+              <GitBranch size={12} />
+              <span className="hidden sm:inline text-[10px]">Force</span>
+            </button>
+            <button 
+              onClick={() => setLayoutMode('pack')}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                layoutMode === 'pack' 
+                  ? 'bg-[#00d4ff] text-[#0d1424]' 
+                  : 'text-[#64748b] hover:text-white hover:bg-[#1e3a5f]'
+              }`}
+              title="Circle packing layout"
+            >
+              <Circle size={12} />
+              <span className="hidden sm:inline text-[10px]">Pack</span>
+            </button>
+            <button
+              onClick={() => {
+                if (!showTimeline && commits.length === 0 && onLoadCommits) {
+                  onLoadCommits();
+                }
+                setShowTimeline(!showTimeline);
+              }}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                showTimeline 
+                  ? 'bg-[#f59e0b] text-[#0d1424]' 
+                  : 'text-[#64748b] hover:text-white hover:bg-[#1e3a5f]'
+              }`}
+              title="Git history timeline"
+            >
+              <History size={12} />
+              <span className="hidden sm:inline text-[10px]">Timeline</span>
+            </button>
+            <button
+              onClick={() => setShowLayoutToggle(false)}
+              className="px-1.5 py-1 text-[#64748b] hover:text-white"
+              title="Close"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowLayoutToggle(true)}
+            className="p-2.5 bg-[#0d1424] border border-[#1e3a5f] rounded-lg text-[#64748b] hover:text-[#00d4ff] hover:bg-[#1e3a5f] hover:border-[#00d4ff] transition-colors shadow-lg cursor-pointer"
+            title="View options (layouts, timeline)"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <Layers size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* Hovered Node Info */}
+      {hoveredNode && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[#0d1424]/95 border border-[#1e3a5f] rounded-lg px-3 py-2 pointer-events-none">
+          <div className="flex items-center gap-2">
+            <span 
+              className="w-3 h-3 rounded-full" 
+              style={{ backgroundColor: layoutMode === 'pack' ? getPackNodeColor(hoveredNode) : getForceNodeColor(hoveredNode) }}
+            />
+            <span className="text-sm text-white font-mono">{hoveredNode.name}</span>
+            {hoveredNode.size && (
+              <span className="text-xs text-[#64748b]">
+                {hoveredNode.size > 1024 
+                  ? `${(hoveredNode.size / 1024).toFixed(1)} KB` 
+                  : `${hoveredNode.size} B`}
+              </span>
+            )}
+          </div>
+          {hoveredNode.path && (
+            <div className="text-xs text-[#64748b] mt-1 font-mono truncate max-w-[300px]">
+              {hoveredNode.path}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Current Commit Author Avatar (Gource-style) - positioned in timeline panel area */}
+      {showTimeline && currentCommit && currentCommit.author.avatar && (
+        <div className="absolute bottom-56 sm:bottom-52 left-8 sm:left-12 pointer-events-none">
+          <div className="relative flex items-center gap-2 bg-[#0d1424]/90 border border-[#f59e0b]/50 rounded-lg px-3 py-2">
+            <img
+              src={currentCommit.author.avatar}
+              alt={currentCommit.author.name}
+              className="w-8 h-8 rounded-full border border-[#f59e0b]"
+            />
+            <div>
+              <div className="text-xs text-white font-medium">{currentCommit.author.name}</div>
+              <div className="text-[10px] text-[#f59e0b]">committing...</div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Zoom Controls */}
       <div className="absolute bottom-4 right-4 flex flex-col gap-1">
         <button onClick={handleZoomIn} className="p-2 bg-[#0d1424] hover:bg-[#1a2744] border border-[#1e3a5f] rounded text-[#64748b] hover:text-[#00d4ff] transition-colors">
@@ -432,62 +888,128 @@ const Visualizer: React.FC<VisualizerProps> = ({
         </button>
       </div>
 
-      {/* Legend - hidden on mobile to avoid overlap */}
+      {/* Legend - Shows colors based on layout mode */}
       <div className="absolute top-4 right-4 bg-[#0d1424]/90 border border-[#1e3a5f] rounded px-3 py-2 hidden sm:block">
-        <div className="text-[10px] text-[#64748b] space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#00d4ff]" />
-            <span>Root</span>
+        {layoutMode === 'force' ? (
+          /* Force mode: Original simple colors */
+          <div className="text-[10px] text-[#64748b] space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#00d4ff]" />
+              <span>Root</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#3b82f6]" />
+              <span>Directory</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#0ea5e9]" />
+              <span>TypeScript</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#22c55e]" />
+              <span>JavaScript</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#475569]" />
+              <span>Other</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#3b82f6]" />
-            <span>Directory</span>
+        ) : (
+          /* Pack mode: GitHub Next vibrant colors */
+          <div className="text-[10px] text-[#94a3b8] space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />
+              <span>TypeScript</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#facc15]" />
+              <span>JavaScript</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ec4899]" />
+              <span>Styles</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7]" />
+              <span>Docs</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#06b6d4]" />
+              <span>Config</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#0ea5e9]" />
-            <span>TypeScript</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#22c55e]" />
-            <span>JavaScript</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#475569]" />
-            <span>Other</span>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Stats - Desktop */}
+      {/* Stats */}
       <div className="absolute bottom-4 left-4 text-[10px] text-[#475569] font-mono hidden sm:block">
-        {data.nodes.length} nodes · {data.links.length} edges · {Math.round(transform.k * 100)}%
+        {data.nodes.length} nodes · {data.links.length} edges · {Math.round(transform.k * 100)}% · {layoutMode === 'pack' ? 'Pack' : 'Force'}
       </div>
 
-      {/* Mobile Legend - Compact bar on left side */}
+      {/* Mobile Legend */}
       <div className="absolute bottom-24 left-2 sm:hidden">
         <div className="flex flex-wrap items-center gap-2 bg-[#0d1424]/90 border border-[#1e3a5f] rounded-lg px-2 py-1.5 max-w-[200px]">
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#00d4ff]" />
-            <span className="text-[8px] text-[#64748b]">Root</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#3b82f6]" />
-            <span className="text-[8px] text-[#64748b]">Folder</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#0ea5e9]" />
-            <span className="text-[8px] text-[#64748b]">TS</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#22c55e]" />
-            <span className="text-[8px] text-[#64748b]">JS</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#475569]" />
-            <span className="text-[8px] text-[#64748b]">Other</span>
-          </div>
+          {layoutMode === 'force' ? (
+            <>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#00d4ff]" />
+                <span className="text-[8px] text-[#64748b]">Root</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#3b82f6]" />
+                <span className="text-[8px] text-[#64748b]">Folder</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#0ea5e9]" />
+                <span className="text-[8px] text-[#64748b]">TS</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#22c55e]" />
+                <span className="text-[8px] text-[#64748b]">JS</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#3b82f6]" />
+                <span className="text-[8px] text-[#94a3b8]">TS</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#facc15]" />
+                <span className="text-[8px] text-[#94a3b8]">JS</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#ec4899]" />
+                <span className="text-[8px] text-[#94a3b8]">CSS</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#a855f7]" />
+                <span className="text-[8px] text-[#94a3b8]">MD</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Timeline Panel (Gource-style git history) */}
+      {showTimeline && (
+        <div className="absolute bottom-20 sm:bottom-16 left-4 right-4 sm:right-auto sm:w-96 z-30">
+          <div className="relative">
+            <button
+              onClick={() => setShowTimeline(false)}
+              className="absolute -top-2 -right-2 p-1 bg-[#1e3a5f] hover:bg-[#2d4a6f] rounded-full text-[#64748b] hover:text-white z-10"
+            >
+              <X size={14} />
+            </button>
+            <TimelinePlayer
+              commits={commits}
+              onCommitChange={(commit, index) => setCurrentCommit(commit)}
+              onFilesActive={setActiveFiles}
+              isLoading={isLoadingCommits}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

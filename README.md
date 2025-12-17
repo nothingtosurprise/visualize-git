@@ -15,6 +15,51 @@ A beautiful GitHub repository visualizer with star history tracking, powered by 
 - 🔌 **Chrome Extension** - View star history directly on GitHub pages
 - 🔄 **Multi-Repo Comparison** - Compare star histories of multiple repositories on one chart
 
+## 🗺️ Roadmap
+
+Inspired by [GitHub Next's Repo Visualization](https://githubnext.com/projects/repo-visualization/) and [Gource](https://gource.io/), we're planning these exciting features:
+
+### Visualization Enhancements
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Circle Packing Layout** | ✅ Done | Alternative layout showing files nested inside folders as circles ([GitHub Next style](https://githubnext.com/projects/repo-visualization/)) |
+| **File Type Coloring** | ✅ Done | Color nodes by file extension (.ts, .js, .css, etc.) |
+| **File Size Scaling** | ✅ Done | Node size represents file size |
+| **Layout Toggle** | ✅ Done | Switch between force-directed and circle-packing views |
+| **Zoom to Folder** | 🔜 Planned | Double-click folder to zoom into its contents |
+
+### Git History Features (Gource-inspired)
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Commit Timeline** | ✅ Done | Animated playback through git commit history |
+| **Contributor Avatars** | ✅ Done | Show developer avatars at files they're working on |
+| **File Change Heatmap** | ✅ Done | Color files by recency of changes (hot = recent) |
+| **Change Frequency** | 🔜 Planned | Highlight files that change most often |
+| **Branch Visualization** | 🔜 Planned | Show different branches as separate trees |
+| **Time-lapse Mode** | 🔜 Planned | Watch codebase evolution from first commit |
+
+### Connection & Analysis
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Import Dependencies** | 🔜 Planned | Show file import/export connections on hover |
+| **Unused File Detection** | 🔜 Planned | Highlight files with no imports |
+| **Code Complexity** | 🔜 Planned | Size/color based on cyclomatic complexity |
+| **Test Coverage** | 🔜 Planned | Visualize which files have tests |
+
+### Export & Sharing
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Embed in README** | ✅ Done | Star history SVG charts |
+| **Video Export** | 🔜 Planned | Export git history animation as video |
+| **Screenshot Mode** | 🔜 Planned | High-res PNG export of current view |
+| **Shareable Links** | ✅ Done | Share specific repo visualizations |
+
+**Want to contribute?** PRs welcome! Check out our [Contributing Guide](CONTRIBUTING.md).
+
 ## Quick Start
 
 ### Prerequisites

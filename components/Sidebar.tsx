@@ -26,11 +26,11 @@ const Sidebar: React.FC<SidebarProps> = ({ repoInfo, selectedNode, onOpenStarHis
       {repoInfo && (
         <div className="p-4 border-b border-[#1e3a5f]">
           <div className="flex items-center gap-3 mb-3">
-            <img 
+          <img 
               src={repoInfo.owner.avatar} 
-              alt={repoInfo.owner.login}
+            alt={repoInfo.owner.login} 
               className="w-12 h-12 rounded-lg"
-            />
+          />
             <div className="min-w-0 flex-1">
               <h2 className="text-sm font-medium text-white truncate">{repoInfo.name}</h2>
               <p className="text-[10px] text-[#64748b]">{repoInfo.owner.login}</p>
@@ -40,7 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ repoInfo, selectedNode, onOpenStarHis
           {repoInfo.description && (
             <p className="text-[11px] text-[#94a3b8] mb-3 line-clamp-3">
               {repoInfo.description}
-            </p>
+        </p>
           )}
 
           <div className="flex items-center gap-4 text-[10px]">
@@ -79,15 +79,15 @@ const Sidebar: React.FC<SidebarProps> = ({ repoInfo, selectedNode, onOpenStarHis
                 <File size={14} className="text-[#64748b]" />
               )}
               <span className="text-sm text-white font-mono truncate flex-1">{selectedNode.name}</span>
-            </div>
-            
+      </div>
+
             <div className="space-y-1.5 text-[10px]">
               <div className="flex justify-between">
                 <span className="text-[#475569]">Path</span>
                 <span className="text-[#94a3b8] font-mono truncate max-w-[160px]" title={selectedNode.path}>
                   {selectedNode.path || '/'}
                 </span>
-              </div>
+                </div>
               <div className="flex justify-between">
                 <span className="text-[#475569]">Type</span>
                 <span className="text-[#94a3b8]">{selectedNode.type === 'tree' ? 'Directory' : 'File'}</span>
@@ -109,14 +109,14 @@ const Sidebar: React.FC<SidebarProps> = ({ repoInfo, selectedNode, onOpenStarHis
                   </span>
                 </div>
               )}
-            </div>
+              </div>
 
             {/* Open on GitHub button */}
             {getGitHubUrl(repoInfo, selectedNode) && (
-              <a
+               <a 
                 href={getGitHubUrl(repoInfo, selectedNode)!}
-                target="_blank"
-                rel="noopener noreferrer"
+                 target="_blank"
+                 rel="noopener noreferrer"
                 className="mt-3 flex items-center justify-center gap-2 w-full py-2 bg-[#1e3a5f] hover:bg-[#2a4a6f] text-[#00d4ff] text-[11px] rounded transition-colors"
               >
                 <ExternalLink size={12} />
@@ -133,7 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({ repoInfo, selectedNode, onOpenStarHis
           <p className="text-[10px] text-[#475569] text-center">
             Click a node to see details
           </p>
-        </div>
+            </div>
       )}
       </div>
 

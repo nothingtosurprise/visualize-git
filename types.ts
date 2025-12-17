@@ -8,6 +8,7 @@ export interface RepoNode extends SimulationNodeDatum {
   size?: number;
   extension?: string;
   parentId?: string | null;
+  children?: RepoNode[]; // For hierarchical layouts
   // D3 Simulation properties (optional but good for TS correctness)
   x?: number;
   y?: number;
