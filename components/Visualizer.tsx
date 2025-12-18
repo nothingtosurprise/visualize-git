@@ -182,8 +182,14 @@ const Visualizer: React.FC<VisualizerProps> = ({
   const [collapsibleMode, setCollapsibleMode] = useState(false);
   const useCollapsibleMode = collapsibleMode && layoutMode === 'force';
 
-  // Show tip for large repos but don't auto-switch
-  // User can manually enable collapsible mode if needed
+  // Keyboard navigation state
+  const [focusedNodeIndex, setFocusedNodeIndex] = useState<number>(-1);
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Get the currently focused node
+  const focusedNode = focusedNodeIndex >= 0 && focusedNodeIndex < filteredData.nodes.length 
+    ? filteredData.nodes[focusedNodeIndex] 
+    : null;
 
   // Toggle node expansion
   const toggleNodeExpansion = useCallback((nodeId: string) => {
@@ -1005,6 +1011,118 @@ const Visualizer: React.FC<VisualizerProps> = ({
       .call(zoomRef.current.transform, d3.zoomIdentity.translate(dimensions.width / 2, dimensions.height / 2).scale(initialScale));
   }, [dimensions, layoutMode]);
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if typing in input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key) {
+        case 'j':
+        case 'ArrowDown':
+          e.preventDefault();
+          setFocusedNodeIndex(prev => {
+            const next = prev + 1;
+            return next >= filteredData.nodes.length ? 0 : next;
+          });
+          break;
+
+        case 'k':
+        case 'ArrowUp':
+          e.preventDefault();
+          setFocusedNodeIndex(prev => {
+            const next = prev - 1;
+            return next < 0 ? filteredData.nodes.length - 1 : next;
+          });
+          break;
+
+        case 'Enter':
+          e.preventDefault();
+          if (focusedNode) {
+            setSelectedNode(focusedNode);
+            onNodeSelect(focusedNode);
+            // If it's a folder in tree mode, expand it
+            if (useCollapsibleMode && focusedNode.type === 'tree' && getChildrenCount(focusedNode.id) > 0) {
+              toggleNodeExpansion(focusedNode.id);
+            }
+          }
+          break;
+
+        case 'Escape':
+          e.preventDefault();
+          if (showHelp) {
+            setShowHelp(false);
+          } else if (selectedNode) {
+            setSelectedNode(null);
+          } else {
+            setFocusedNodeIndex(-1);
+          }
+          break;
+
+        case '?':
+          e.preventDefault();
+          setShowHelp(prev => !prev);
+          break;
+
+        case 't':
+          // Toggle tree mode
+          if (layoutMode === 'force') {
+            e.preventDefault();
+            setCollapsibleMode(prev => !prev);
+            if (!collapsibleMode) {
+              setExpandedNodes(new Set(['ROOT']));
+            }
+          }
+          break;
+
+        case 'p':
+          // Toggle pack mode
+          e.preventDefault();
+          setLayoutMode(prev => prev === 'pack' ? 'force' : 'pack');
+          break;
+
+        case 'f':
+          // Focus search (handled by App.tsx, but prevent default)
+          break;
+
+        case 'g':
+          // Toggle view options
+          e.preventDefault();
+          setShowLayoutToggle(prev => !prev);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filteredData.nodes.length, focusedNode, selectedNode, showHelp, useCollapsibleMode, layoutMode, collapsibleMode, onNodeSelect, getChildrenCount, toggleNodeExpansion]);
+
+  // Highlight focused node visually
+  useEffect(() => {
+    if (!gRef.current || focusedNodeIndex < 0) return;
+    
+    const g = d3.select(gRef.current);
+    // Remove previous focus highlight
+    g.selectAll('.focus-ring').remove();
+    
+    if (focusedNode) {
+      const pos = nodesMapRef.current.get(focusedNode.id);
+      if (pos && isFinite(pos.x) && isFinite(pos.y)) {
+        // Add focus ring
+        g.append('circle')
+          .attr('class', 'focus-ring')
+          .attr('cx', pos.x)
+          .attr('cy', pos.y)
+          .attr('r', 20)
+          .attr('fill', 'none')
+          .attr('stroke', '#f59e0b')
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', '4,2')
+          .attr('opacity', 0.8);
+      }
+    }
+  }, [focusedNodeIndex, focusedNode]);
+
   // Extended bounds for zoom-out
   const extendedBounds = useMemo(() => {
     const extend = 5;
@@ -1557,6 +1675,104 @@ const Visualizer: React.FC<VisualizerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Help Modal */}
+      {showHelp && (
+        <div 
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm"
+          onClick={() => setShowHelp(false)}
+        >
+          <div 
+            className="bg-[#0a0f1a] border border-[#1e3a5f] rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">⌨️ Keyboard Shortcuts</h2>
+              <button 
+                onClick={() => setShowHelp(false)}
+                className="p-1 text-[#64748b] hover:text-white hover:bg-[#1e3a5f] rounded transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Navigation */}
+              <div>
+                <h3 className="text-xs font-medium text-[#64748b] uppercase tracking-wide mb-2">Navigation</h3>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#94a3b8]">Next node</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#00d4ff] font-mono text-xs">j</kbd>
+                      <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#00d4ff] font-mono text-xs">↓</kbd>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#94a3b8]">Previous node</span>
+                    <div className="flex gap-1">
+                      <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#00d4ff] font-mono text-xs">k</kbd>
+                      <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#00d4ff] font-mono text-xs">↑</kbd>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#94a3b8]">Select / Expand</span>
+                    <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#00d4ff] font-mono text-xs">Enter</kbd>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#94a3b8]">Close / Deselect</span>
+                    <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#00d4ff] font-mono text-xs">Esc</kbd>
+                  </div>
+                </div>
+              </div>
+
+              {/* View Controls */}
+              <div>
+                <h3 className="text-xs font-medium text-[#64748b] uppercase tracking-wide mb-2">View Controls</h3>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#94a3b8]">Toggle Tree mode</span>
+                    <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#8b5cf6] font-mono text-xs">t</kbd>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#94a3b8]">Toggle Pack view</span>
+                    <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#22c55e] font-mono text-xs">p</kbd>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#94a3b8]">Show view options</span>
+                    <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-[#f59e0b] font-mono text-xs">g</kbd>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#94a3b8]">Show this help</span>
+                    <kbd className="px-2 py-0.5 bg-[#1e3a5f] rounded text-white font-mono text-xs">?</kbd>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mouse Controls */}
+              <div>
+                <h3 className="text-xs font-medium text-[#64748b] uppercase tracking-wide mb-2">Mouse Controls</h3>
+                <div className="space-y-1.5 text-sm text-[#94a3b8]">
+                  <div>• Scroll to zoom in/out</div>
+                  <div>• Drag to pan the view</div>
+                  <div>• Drag nodes to reposition</div>
+                  <div>• Click node to see details</div>
+                  <div>• Hover to see path to root</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-[#1e3a5f] text-center">
+              <span className="text-xs text-[#64748b]">Press <kbd className="px-1.5 py-0.5 bg-[#1e3a5f] rounded text-white font-mono text-[10px]">?</kbd> anytime to toggle this help</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard hint */}
+      <div className="absolute bottom-4 right-4 text-[10px] text-[#475569] font-mono hidden sm:block">
+        Press <kbd className="px-1 py-0.5 bg-[#1e3a5f] rounded text-[#64748b] font-mono">?</kbd> for shortcuts
+      </div>
     </div>
   );
 };
