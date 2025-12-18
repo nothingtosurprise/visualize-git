@@ -494,4 +494,3 @@ export const handler: Handlers['EmbedStarHistory'] = async (req, ctx) => {
     }
   }
 }
-
