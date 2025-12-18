@@ -168,6 +168,100 @@ const Visualizer: React.FC<VisualizerProps> = ({
   const [showLayoutToggle, setShowLayoutToggle] = useState(false); // Hidden by default
   const [activeFiles, setActiveFiles] = useState<Set<string>>(new Set());
   const [currentCommit, setCurrentCommit] = useState<CommitData | null>(null);
+  const [foldersOnly, setFoldersOnly] = useState(false); // Show only folders for large repos
+  const [autoSwitched, setAutoSwitched] = useState(false); // Track if we auto-switched to pack
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['ROOT'])); // Start with only ROOT expanded
+  const [selectedNode, setSelectedNode] = useState<RepoNode | null>(null); // For detail panel
+
+  // Check graph size
+  const nodeCount = data.nodes.length;
+  const isLargeGraph = nodeCount > 600;
+  const isMediumGraph = nodeCount > 300;
+
+  // Collapsible mode is now a manual toggle, not automatic
+  const [collapsibleMode, setCollapsibleMode] = useState(false);
+  const useCollapsibleMode = collapsibleMode && layoutMode === 'force';
+
+  // Show tip for large repos but don't auto-switch
+  // User can manually enable collapsible mode if needed
+
+  // Toggle node expansion
+  const toggleNodeExpansion = useCallback((nodeId: string) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        // Collapse: remove this node and all its descendants
+        const toRemove = new Set<string>();
+        const collectDescendants = (id: string) => {
+          data.nodes.forEach(n => {
+            if (n.parentId === id) {
+              toRemove.add(n.id);
+              collectDescendants(n.id);
+            }
+          });
+        };
+        collectDescendants(nodeId);
+        toRemove.forEach(id => next.delete(id));
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  }, [data.nodes]);
+
+  // Get children count for a node
+  const getChildrenCount = useCallback((nodeId: string): number => {
+    return data.nodes.filter(n => n.parentId === nodeId).length;
+  }, [data.nodes]);
+
+  // Filter nodes based on mode
+  const filteredData = useMemo(() => {
+    // Collapsible mode: show ROOT + direct children of expanded nodes
+    if (useCollapsibleMode) {
+      const visibleNodes: RepoNode[] = [];
+      const visibleIds = new Set<string>();
+
+      // Always show ROOT
+      const root = data.nodes.find(n => n.id === 'ROOT');
+      if (root) {
+        visibleNodes.push(root);
+        visibleIds.add('ROOT');
+      }
+
+      // Show direct children of expanded nodes
+      data.nodes.forEach(node => {
+        if (node.parentId && expandedNodes.has(node.parentId)) {
+          visibleNodes.push(node);
+          visibleIds.add(node.id);
+        }
+      });
+
+      // Filter links to only include visible nodes
+      const visibleLinks = data.links.filter(l => {
+        const sourceId = typeof l.source === 'string' ? l.source : (l.source as RepoNode).id;
+        const targetId = typeof l.target === 'string' ? l.target : (l.target as RepoNode).id;
+        return visibleIds.has(sourceId) && visibleIds.has(targetId);
+      });
+
+      return { nodes: visibleNodes, links: visibleLinks };
+    }
+
+    // Folders only mode
+    if (foldersOnly) {
+      const folderNodes = data.nodes.filter(n => n.type === 'tree' || n.id === 'ROOT');
+      const folderIds = new Set(folderNodes.map(n => n.id));
+      const folderLinks = data.links.filter(l => 
+        folderIds.has(typeof l.source === 'string' ? l.source : (l.source as RepoNode).id) &&
+        folderIds.has(typeof l.target === 'string' ? l.target : (l.target as RepoNode).id)
+      );
+      
+      return { nodes: folderNodes, links: folderLinks };
+    }
+
+    // Normal mode: show all nodes
+    return data;
+  }, [data, foldersOnly, useCollapsibleMode, expandedNodes]);
 
   // Generate random stars for background
   const stars = useMemo(() => {
@@ -256,12 +350,12 @@ const Visualizer: React.FC<VisualizerProps> = ({
 
   // New Improved Circle Packing Layout (Monaspace/GitHub Next inspired)
   const renderPackLayout = useCallback(() => {
-    if (!data.nodes.length || !gRef.current) return;
+    if (!filteredData.nodes.length || !gRef.current) return;
     
     const g = d3.select(gRef.current);
     g.selectAll('*').remove();
     
-    const hierarchy = buildHierarchy(data.nodes);
+    const hierarchy = buildHierarchy(filteredData.nodes);
     
     // Use most of the viewport for the pack
     const margin = 40;
@@ -381,13 +475,14 @@ const Visualizer: React.FC<VisualizerProps> = ({
       })
       .on('click', (event, d) => {
         event.stopPropagation();
+        setSelectedNode(d.data);
         onNodeSelect(d.data);
       });
-  }, [data, dimensions, onNodeSelect]);
+  }, [filteredData, dimensions, onNodeSelect]);
 
   // Force-Directed Layout
   const renderForceLayout = useCallback(() => {
-    if (!data.nodes.length || !gRef.current) return;
+    if (!filteredData.nodes.length || !gRef.current) return;
 
     if (simulationRef.current) {
       simulationRef.current.stop();
@@ -396,33 +491,45 @@ const Visualizer: React.FC<VisualizerProps> = ({
     const g = d3.select(gRef.current);
     g.selectAll('*').remove();
 
-    const simNodes: RepoNode[] = data.nodes.map(d => ({ ...d, x: 0, y: 0 }));
-    const simLinks: RepoLink[] = data.links.map(d => ({ ...d }));
+    const simNodes: RepoNode[] = filteredData.nodes.map(d => ({ ...d, x: 0, y: 0 }));
+    const simLinks: RepoLink[] = filteredData.links.map(d => ({ ...d }));
+
+    // Adaptive force parameters based on graph size
+    const currentNodeCount = simNodes.length;
+    const isCurrentlyLarge = currentNodeCount > 500;
+    const isCurrentlyMedium = currentNodeCount > 200;
+    
+    // Scale parameters - keep large graphs compact and readable
+    const linkDistance = isCurrentlyLarge ? 30 : isCurrentlyMedium ? 32 : 35;
+    const linkStrength = isCurrentlyLarge ? 0.6 : isCurrentlyMedium ? 0.55 : 0.5;
+    const chargeStrength = isCurrentlyLarge ? -80 : isCurrentlyMedium ? -85 : -90;
+    const chargeDistanceMax = isCurrentlyLarge ? 150 : isCurrentlyMedium ? 160 : 180;
+    const centeringStrength = isCurrentlyLarge ? 0.08 : isCurrentlyMedium ? 0.05 : 0.03;
 
     const simulation = d3.forceSimulation(simNodes)
       .force('link', d3.forceLink<RepoNode, RepoLink>(simLinks)
         .id(d => d.id)
-        .distance(35)
-        .strength(0.5))
+        .distance(linkDistance)
+        .strength(linkStrength))
       .force('charge', d3.forceManyBody()
-        .strength(-90)
-        .distanceMax(180))
+        .strength(chargeStrength)
+        .distanceMax(chargeDistanceMax))
       .force('center', d3.forceCenter(0, 0))
-      .force('collision', d3.forceCollide().radius(d => getNodeSize(d as RepoNode) + 5))
-      .force('x', d3.forceX(0).strength(0.03))
-      .force('y', d3.forceY(0).strength(0.03));
+      .force('collision', d3.forceCollide().radius(d => getNodeSize(d as RepoNode) + (isCurrentlyLarge ? 3 : 5)))
+      .force('x', d3.forceX(0).strength(centeringStrength))
+      .force('y', d3.forceY(0).strength(centeringStrength));
 
     simulationRef.current = simulation;
 
-    // Links
+    // Links - slightly more subtle for large graphs
     const linkGroup = g.append('g').attr('class', 'links');
     const link = linkGroup.selectAll('line')
       .data(simLinks)
       .join('line')
       .attr('class', 'link-line')
       .attr('stroke', '#1e3a5f')
-      .attr('stroke-width', 0.8)
-      .attr('stroke-opacity', 0.5);
+      .attr('stroke-width', isCurrentlyLarge ? 0.6 : isCurrentlyMedium ? 0.7 : 0.8)
+      .attr('stroke-opacity', isCurrentlyLarge ? 0.5 : isCurrentlyMedium ? 0.5 : 0.5);
 
     // Nodes
     const nodeGroup = g.append('g').attr('class', 'nodes');
@@ -447,11 +554,21 @@ const Visualizer: React.FC<VisualizerProps> = ({
           d.fy = null;
         }));
 
-    // Circles
+    // Circles - keep good visibility even for large graphs
+    const sizeScale = isCurrentlyLarge ? 0.9 : isCurrentlyMedium ? 0.95 : 1;
+    
     node.each(function(d) {
       const color = getForceNodeColor(d);
-      const size = getNodeSize(d);
+      const baseSize = getNodeSize(d) || 4; // Fallback to 4 if undefined
+      // Keep ROOT and folders at full size for structure visibility
+      let size = d.id === 'ROOT' ? baseSize : d.type === 'tree' ? baseSize : baseSize * sizeScale;
+      // Ensure size is a valid number
+      if (isNaN(size) || size <= 0) size = 4;
+      
       const nodeG = d3.select(this);
+      
+      // Store computed size for later use
+      (d as any)._computedSize = size;
       
       if (d.id === 'ROOT') {
         nodeG.append('circle')
@@ -469,15 +586,15 @@ const Visualizer: React.FC<VisualizerProps> = ({
         .attr('stroke-width', d.id === 'ROOT' ? 2 : 0);
     });
 
-    // Labels for directories
+    // Labels for all directories (show all folder names for structure visibility)
     node.filter(d => d.id === 'ROOT' || d.type === 'tree')
       .append('text')
       .attr('class', 'node-label')
       .text(d => d.name)
       .attr('x', 0)
-      .attr('y', d => -(getNodeSize(d) + 6))
+      .attr('y', d => -(((d as any)._computedSize || getNodeSize(d)) + 5))
       .attr('text-anchor', 'middle')
-      .attr('font-size', d => d.id === 'ROOT' ? '11px' : '8px')
+      .attr('font-size', d => d.id === 'ROOT' ? '11px' : isCurrentlyLarge ? '7px' : '8px')
       .attr('font-weight', d => d.id === 'ROOT' ? '600' : '400')
       .attr('fill', '#94a3b8')
       .attr('font-family', 'ui-monospace, monospace')
@@ -486,7 +603,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
     // Hover interactions
     node
       .on('mouseenter', function(event, d) {
-        const size = getNodeSize(d);
+        const size = (d as any)._computedSize || getNodeSize(d);
         const pathNodes = getPathToRoot(d.id, simNodes);
         setHoveredPath(pathNodes);
         setHoveredNode(d);
@@ -511,7 +628,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
         }
       })
       .on('mouseleave', function(event, d) {
-        const size = getNodeSize(d);
+        const size = (d as any)._computedSize || getNodeSize(d);
         setHoveredPath(new Set());
         setHoveredNode(null);
         
@@ -523,8 +640,49 @@ const Visualizer: React.FC<VisualizerProps> = ({
       })
       .on('click', (event, d) => {
         event.stopPropagation();
+        
+        // In collapsible mode, folders toggle expansion
+        if (useCollapsibleMode && d.type === 'tree' && getChildrenCount(d.id) > 0) {
+          toggleNodeExpansion(d.id);
+        }
+        
+        // Always select for detail panel
+        setSelectedNode(d);
         onNodeSelect(d);
       });
+
+    // Add expand/collapse indicators for folders with children (collapsible mode)
+    if (useCollapsibleMode) {
+      node.filter(d => d.type === 'tree' && getChildrenCount(d.id) > 0)
+        .append('text')
+        .attr('class', 'expand-indicator')
+        .text(d => expandedNodes.has(d.id) ? '−' : '+')
+        .attr('x', d => {
+          const size = (d as any)._computedSize;
+          return (typeof size === 'number' && !isNaN(size) ? size : 10) + 3;
+        })
+        .attr('y', 4)
+        .attr('font-size', '12px')
+        .attr('font-weight', 'bold')
+        .attr('fill', d => expandedNodes.has(d.id) ? '#f59e0b' : '#22c55e')
+        .attr('cursor', 'pointer')
+        .attr('pointer-events', 'all');
+      
+      // Add children count badge
+      node.filter(d => d.type === 'tree' && getChildrenCount(d.id) > 0 && !expandedNodes.has(d.id))
+        .append('text')
+        .attr('class', 'children-count')
+        .text(d => `(${getChildrenCount(d.id)})`)
+        .attr('x', d => {
+          const size = (d as any)._computedSize;
+          return (typeof size === 'number' && !isNaN(size) ? size : 10) + 14;
+        })
+        .attr('y', 4)
+        .attr('font-size', '9px')
+        .attr('fill', '#64748b')
+        .attr('font-family', 'ui-monospace, monospace')
+        .attr('pointer-events', 'none');
+    }
 
     simulation.on('tick', () => {
       simNodes.forEach(n => {
@@ -543,7 +701,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
     return () => {
       simulation.stop();
     };
-  }, [data, onNodeSelect, getPathToRoot]);
+  }, [filteredData, onNodeSelect, getPathToRoot, useCollapsibleMode, expandedNodes, toggleNodeExpansion, getChildrenCount]);
 
   // Render based on layout mode
   useEffect(() => {
@@ -699,8 +857,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
       const filename = file.filename;
       const filenameOnly = filename.split('/').pop() || filename;
       
-      // Find matching node by path (try multiple matching strategies)
-      const node = data.nodes.find(n => {
+      // IMPORTANT: Only search in VISIBLE nodes (filteredData), not all nodes
+      // This prevents projectiles going to invisible nodes in Tree/Folders mode
+      const node = filteredData.nodes.find(n => {
         if (!n.path) return false;
         // Exact match
         if (n.path === filename) return true;
@@ -711,6 +870,25 @@ const Visualizer: React.FC<VisualizerProps> = ({
         if (nodeName === filenameOnly && n.type === 'blob') return true;
         return false;
       });
+      
+      // If file not visible, try to find its visible parent folder
+      if (!node && (collapsibleMode || foldersOnly)) {
+        // Find the closest visible parent folder
+        const pathParts = filename.split('/');
+        for (let i = pathParts.length - 1; i >= 0; i--) {
+          const parentPath = pathParts.slice(0, i).join('/');
+          const parentNode = filteredData.nodes.find(n => 
+            n.type === 'tree' && (n.path === parentPath || n.path === '/' + parentPath)
+          );
+          if (parentNode) {
+            const pos = nodesMapRef.current.get(parentNode.id);
+            if (pos && isFinite(pos.x) && isFinite(pos.y)) {
+              targetNode = pos;
+              break;
+            }
+          }
+        }
+      }
       
       // Use nodesMapRef for both force and pack layouts (it stores current positions)
       if (node) {
@@ -808,7 +986,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
           });
       } // else: node not found in visualization (might be beyond the 200 node limit)
     });
-  }, [currentCommit, dimensions, layoutMode, data]);
+  }, [currentCommit, dimensions, layoutMode, filteredData, collapsibleMode, foldersOnly]);
 
   const handleZoomIn = useCallback(() => {
     if (!svgRef.current || !zoomRef.current) return;
@@ -920,6 +1098,69 @@ const Visualizer: React.FC<VisualizerProps> = ({
               <Circle size={12} />
               <span className="hidden sm:inline text-[10px]">Pack</span>
             </button>
+            {/* Mode toggles - show based on layout */}
+            {layoutMode === 'force' && (
+              <div className="border-l border-[#1e3a5f] ml-1 pl-2 flex gap-1">
+                {/* Collapsible mode toggle */}
+                <button 
+                  onClick={() => {
+                    setCollapsibleMode(!collapsibleMode);
+                    if (!collapsibleMode) {
+                      setExpandedNodes(new Set(['ROOT'])); // Start collapsed
+                    }
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                    collapsibleMode 
+                      ? 'bg-[#8b5cf6] text-white' 
+                      : 'text-[#64748b] hover:text-white hover:bg-[#1e3a5f]'
+                  }`}
+                  title="Toggle collapsible mode - click folders to expand/collapse"
+                >
+                  🌳
+                  <span className="hidden sm:inline">Tree</span>
+                </button>
+                
+                {/* Folders only toggle */}
+                {!collapsibleMode && (
+                  <button 
+                    onClick={() => setFoldersOnly(!foldersOnly)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                      foldersOnly 
+                        ? 'bg-[#22c55e] text-[#0d1424]' 
+                        : 'text-[#64748b] hover:text-white hover:bg-[#1e3a5f]'
+                    }`}
+                    title="Show folders only"
+                  >
+                    📁
+                    <span className="hidden sm:inline">Folders</span>
+                  </button>
+                )}
+
+                {/* Collapsible mode controls */}
+                {collapsibleMode && (
+                  <>
+                    <button 
+                      onClick={() => {
+                        const firstLevel = new Set(['ROOT']);
+                        data.nodes.filter(n => n.parentId === 'ROOT').forEach(n => firstLevel.add(n.id));
+                        setExpandedNodes(firstLevel);
+                      }}
+                      className="px-2 py-1 rounded text-[10px] font-medium text-[#64748b] hover:text-white hover:bg-[#1e3a5f] transition-colors"
+                      title="Expand first level"
+                    >
+                      +1
+                    </button>
+                    <button 
+                      onClick={() => setExpandedNodes(new Set(['ROOT']))}
+                      className="px-2 py-1 rounded text-[10px] font-medium text-[#f59e0b] hover:bg-[#f59e0b]/20 transition-colors"
+                      title="Collapse all"
+                    >
+                      ⟲
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             <button
               onClick={() => {
                 if (!showTimeline && commits.length === 0 && onLoadCommits) {
@@ -996,8 +1237,160 @@ const Visualizer: React.FC<VisualizerProps> = ({
         </button>
       </div>
 
-      {/* Legend - Shows colors based on layout mode */}
-      <div className="absolute top-4 right-4 bg-[#0d1424]/90 border border-[#1e3a5f] rounded px-3 py-2 hidden sm:block">
+      {/* Detail Panel - Slide in from right when node selected */}
+      {selectedNode && (
+        <div className="absolute top-0 right-0 h-full w-80 bg-[#0a0f1a]/95 border-l border-[#1e3a5f] z-40 overflow-y-auto backdrop-blur-sm animate-in slide-in-from-right duration-200">
+          {/* Header */}
+          <div className="sticky top-0 bg-[#0a0f1a]/95 border-b border-[#1e3a5f] p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-4 h-4 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: layoutMode === 'pack' ? getPackNodeColor(selectedNode) : getForceNodeColor(selectedNode) }}
+                />
+                <div>
+                  <h3 className="text-white font-semibold text-sm truncate max-w-[180px]">{selectedNode.name}</h3>
+                  <p className="text-[10px] text-[#64748b] font-mono truncate max-w-[180px]">{selectedNode.path}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedNode(null)}
+                className="p-1 text-[#64748b] hover:text-white hover:bg-[#1e3a5f] rounded transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {/* Type badge */}
+            <div className="flex items-center gap-2 mt-3">
+              <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                selectedNode.type === 'tree' 
+                  ? 'bg-[#3b82f6]/20 text-[#3b82f6]' 
+                  : 'bg-[#22c55e]/20 text-[#22c55e]'
+              }`}>
+                {selectedNode.type === 'tree' ? '📁 Folder' : '📄 File'}
+              </span>
+              {selectedNode.extension && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#00d4ff]/20 text-[#00d4ff]">
+                  .{selectedNode.extension}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-4 space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              {selectedNode.size && (
+                <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-lg p-3">
+                  <div className="text-[10px] text-[#64748b] uppercase tracking-wide">Size</div>
+                  <div className="text-lg font-semibold text-white">
+                    {selectedNode.size > 1024 
+                      ? `${(selectedNode.size / 1024).toFixed(1)} KB` 
+                      : `${selectedNode.size} B`}
+                  </div>
+                </div>
+              )}
+              {selectedNode.type === 'tree' && (
+                <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-lg p-3">
+                  <div className="text-[10px] text-[#64748b] uppercase tracking-wide">Children</div>
+                  <div className="text-lg font-semibold text-white">{getChildrenCount(selectedNode.id)}</div>
+                </div>
+              )}
+              <div className="bg-[#0d1424] border border-[#1e3a5f] rounded-lg p-3">
+                <div className="text-[10px] text-[#64748b] uppercase tracking-wide">Depth</div>
+                <div className="text-lg font-semibold text-white">
+                  {selectedNode.path.split('/').filter(Boolean).length}
+                </div>
+              </div>
+            </div>
+
+            {/* Expand/Collapse for folders */}
+            {selectedNode.type === 'tree' && getChildrenCount(selectedNode.id) > 0 && useCollapsibleMode && (
+              <button
+                onClick={() => toggleNodeExpansion(selectedNode.id)}
+                className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  expandedNodes.has(selectedNode.id)
+                    ? 'bg-[#f59e0b]/20 text-[#f59e0b] hover:bg-[#f59e0b]/30'
+                    : 'bg-[#22c55e]/20 text-[#22c55e] hover:bg-[#22c55e]/30'
+                }`}
+              >
+                {expandedNodes.has(selectedNode.id) ? '➖ Collapse Folder' : `➕ Expand Folder (${getChildrenCount(selectedNode.id)} items)`}
+              </button>
+            )}
+
+            {/* Children preview (if folder and expanded) */}
+            {selectedNode.type === 'tree' && expandedNodes.has(selectedNode.id) && (
+              <div>
+                <h4 className="text-xs font-medium text-[#94a3b8] mb-2">Contents</h4>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {data.nodes
+                    .filter(n => n.parentId === selectedNode.id)
+                    .slice(0, 15)
+                    .map(child => (
+                      <button
+                        key={child.id}
+                        onClick={() => setSelectedNode(child)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-[#1e3a5f] transition-colors"
+                      >
+                        <span 
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: layoutMode === 'pack' ? getPackNodeColor(child) : getForceNodeColor(child) }}
+                        />
+                        <span className="text-xs text-[#e2e8f0] truncate">{child.name}</span>
+                        {child.type === 'tree' && (
+                          <span className="text-[10px] text-[#64748b] ml-auto">📁</span>
+                        )}
+                      </button>
+                    ))
+                  }
+                  {data.nodes.filter(n => n.parentId === selectedNode.id).length > 15 && (
+                    <div className="text-[10px] text-[#64748b] text-center py-1">
+                      +{data.nodes.filter(n => n.parentId === selectedNode.id).length - 15} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Path breadcrumb */}
+            <div>
+              <h4 className="text-xs font-medium text-[#94a3b8] mb-2">Path</h4>
+              <div className="flex flex-wrap gap-1">
+                {selectedNode.path.split('/').filter(Boolean).map((part, i, arr) => (
+                  <span key={i} className="inline-flex items-center">
+                    <span className="text-[11px] text-[#64748b] font-mono bg-[#1e3a5f]/50 px-1.5 py-0.5 rounded">
+                      {part}
+                    </span>
+                    {i < arr.length - 1 && <span className="text-[#475569] mx-1">/</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Graph Metrics placeholder - future feature */}
+            <div className="border-t border-[#1e3a5f] pt-4">
+              <h4 className="text-xs font-medium text-[#94a3b8] mb-3">Graph Metrics</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-[#64748b]">PageRank</span>
+                  <span className="text-[#00d4ff] font-mono">—</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-[#64748b]">Betweenness</span>
+                  <span className="text-[#00d4ff] font-mono">—</span>
+                </div>
+                <div className="text-[10px] text-[#475569] italic mt-2">
+                  Coming soon: File importance metrics
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Legend - Shows colors based on layout mode (shift left when panel open) */}
+      <div className={`absolute top-4 bg-[#0d1424]/90 border border-[#1e3a5f] rounded px-3 py-2 hidden sm:block transition-all ${selectedNode ? 'right-84' : 'right-4'}`}>
         {layoutMode === 'force' ? (
           /* Force mode: Original simple colors */
           <div className="text-[10px] text-[#64748b] space-y-1">
@@ -1053,9 +1446,51 @@ const Visualizer: React.FC<VisualizerProps> = ({
         )}
       </div>
 
+      {/* Tip for large repos - suggest collapsible mode */}
+      {isLargeGraph && !collapsibleMode && layoutMode === 'force' && (
+        <div className="absolute top-14 left-4 z-40 max-w-xs">
+          <div className="bg-[#0d1424]/95 border border-[#f59e0b]/50 rounded-lg px-3 py-2 text-[11px]">
+            <span className="text-[#f59e0b] font-medium">💡 Large repo ({nodeCount} files)</span>
+            <span className="text-[#94a3b8]"> — Try </span>
+            <button 
+              onClick={() => {
+                setShowLayoutToggle(true);
+                setCollapsibleMode(true);
+                setExpandedNodes(new Set(['ROOT']));
+              }}
+              className="text-[#8b5cf6] hover:underline font-medium"
+            >
+              🌳 Tree mode
+            </button>
+            <span className="text-[#94a3b8]"> to explore step by step.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Tip when in collapsible mode */}
+      {collapsibleMode && expandedNodes.size <= 1 && (
+        <div className="absolute top-14 left-4 z-40 max-w-sm">
+          <div className="bg-[#0d1424]/95 border border-[#8b5cf6]/50 rounded-lg px-4 py-3 text-xs">
+            <div className="flex items-start gap-2">
+              <span className="text-xl">🌳</span>
+              <div>
+                <span className="text-[#8b5cf6] font-semibold">Tree Mode</span>
+                <p className="text-[#94a3b8] mt-1 leading-relaxed">
+                  Click <span className="text-[#22c55e] font-mono">+</span> on folders to expand, 
+                  or click any node for details.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="absolute bottom-4 left-4 text-[10px] text-[#475569] font-mono hidden sm:block">
-        {data.nodes.length} nodes · {data.links.length} edges · {Math.round(transform.k * 100)}% · {layoutMode === 'pack' ? 'Pack' : 'Force'}
+        {filteredData.nodes.length} nodes · {filteredData.links.length} edges · {Math.round(transform.k * 100)}%
+        {layoutMode === 'pack' ? ' · Pack' : ' · Force'}
+        {collapsibleMode && ` · 🌳 Tree (${expandedNodes.size} open)`}
+        {foldersOnly && !collapsibleMode && ' · Folders Only'}
       </div>
 
       {/* Mobile Legend */}
