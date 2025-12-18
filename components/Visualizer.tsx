@@ -1187,8 +1187,8 @@ const Visualizer: React.FC<VisualizerProps> = ({
         <g ref={gRef} style={{ pointerEvents: 'all' }} />
       </svg>
       
-      {/* View Options - Compact toggle in top-left */}
-      <div className="absolute top-4 left-4 z-50 flex items-center gap-2" style={{ pointerEvents: 'auto' }}>
+      {/* View Options - Compact toggle in top-left, smaller on mobile */}
+      <div className="absolute top-2 sm:top-4 left-2 sm:left-4 z-50 flex items-center gap-1 sm:gap-2" style={{ pointerEvents: 'auto' }}>
         {/* Simple view mode toggle - only show when expanded */}
         {showLayoutToggle ? (
           <div className="flex gap-1 bg-[#0d1424] border border-[#1e3a5f] rounded-lg p-1 shadow-lg">
@@ -1317,8 +1317,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
       </div>
 
       {/* Hovered Node Info - positioned below header with high z-index */}
+      {/* Hovered node tooltip - positioned lower on mobile */}
       {hoveredNode && (
-        <div className="absolute top-44 left-1/2 -translate-x-1/2 bg-[#0d1424]/95 border border-[#1e3a5f] rounded-lg px-3 py-2 pointer-events-none z-30 shadow-lg">
+        <div className="absolute top-24 sm:top-44 left-1/2 -translate-x-1/2 bg-[#0d1424]/95 border border-[#1e3a5f] rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 pointer-events-none z-30 shadow-lg max-w-[90vw]">
           <div className="flex items-center gap-2">
             <span 
               className="w-3 h-3 rounded-full" 
@@ -1355,11 +1356,15 @@ const Visualizer: React.FC<VisualizerProps> = ({
         </button>
       </div>
 
-      {/* Detail Panel - Slide in from right when node selected */}
+      {/* Detail Panel - Bottom sheet on mobile, right sidebar on desktop */}
       {selectedNode && (
-        <div className="absolute top-0 right-0 h-full w-80 bg-[#0a0f1a]/95 border-l border-[#1e3a5f] z-40 overflow-y-auto backdrop-blur-sm animate-in slide-in-from-right duration-200">
+        <div className="absolute sm:top-0 sm:right-0 sm:h-full sm:w-80 bottom-0 left-0 right-0 h-[50vh] sm:bottom-auto sm:left-auto bg-[#0a0f1a]/95 border-t sm:border-t-0 sm:border-l border-[#1e3a5f] z-40 overflow-y-auto backdrop-blur-sm rounded-t-xl sm:rounded-none">
+          {/* Mobile drag handle */}
+          <div className="sm:hidden flex justify-center py-2">
+            <div className="w-10 h-1 bg-[#475569] rounded-full" />
+          </div>
           {/* Header */}
-          <div className="sticky top-0 bg-[#0a0f1a]/95 border-b border-[#1e3a5f] p-4">
+          <div className="sticky top-0 bg-[#0a0f1a]/95 border-b border-[#1e3a5f] p-3 sm:p-4 pt-0 sm:pt-4">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div 
@@ -1564,9 +1569,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
         )}
       </div>
 
-      {/* Tip for large repos - suggest collapsible mode */}
+      {/* Tip for large repos - hidden on mobile to avoid overlap */}
       {isLargeGraph && !collapsibleMode && layoutMode === 'force' && (
-        <div className="absolute top-14 left-4 z-40 max-w-xs">
+        <div className="absolute top-16 left-4 z-40 max-w-xs hidden sm:block">
           <div className="bg-[#0d1424]/95 border border-[#f59e0b]/50 rounded-lg px-3 py-2 text-[11px]">
             <span className="text-[#f59e0b] font-medium">💡 Large repo ({nodeCount} files)</span>
             <span className="text-[#94a3b8]"> — Try </span>
@@ -1585,9 +1590,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
         </div>
       )}
 
-      {/* Tip when in collapsible mode */}
+      {/* Tip when in collapsible mode - hidden on mobile */}
       {collapsibleMode && expandedNodes.size <= 1 && (
-        <div className="absolute top-14 left-4 z-40 max-w-sm">
+        <div className="absolute top-16 left-4 z-40 max-w-sm hidden sm:block">
           <div className="bg-[#0d1424]/95 border border-[#8b5cf6]/50 rounded-lg px-4 py-3 text-xs">
             <div className="flex items-start gap-2">
               <span className="text-xl">🌳</span>
