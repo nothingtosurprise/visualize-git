@@ -89,7 +89,7 @@ export const handler: Handlers['EmbedStarBadge'] = async (req, ctx) => {
   try {
     const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'GitGalaxy-Badge',
+      'User-Agent': 'Git-History-Badge',
     }
     
     // Use query param token or environment variable

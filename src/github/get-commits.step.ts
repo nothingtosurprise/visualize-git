@@ -51,7 +51,7 @@ export const handler: Handlers['GetCommits'] = async (req, ctx) => {
 
   const headers: Record<string, string> = {
     'Accept': 'application/vnd.github.v3+json',
-    'User-Agent': 'GitGalaxy',
+    'User-Agent': 'Git-History',
   };
 
   if (token) {

@@ -1,5 +1,5 @@
-/* GitGalaxy Modal Styles */
-#gitgalaxy-modal {
+/* Git History Modal Styles */
+#git-history-modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -11,7 +11,7 @@
   justify-content: center;
 }
 
-.gitgalaxy-overlay {
+.git-history-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -21,7 +21,7 @@
   backdrop-filter: blur(4px);
 }
 
-.gitgalaxy-content {
+.git-history-content {
   position: relative;
   background: #0d1424;
   border: 1px solid #1e3a5f;
@@ -32,7 +32,7 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.gitgalaxy-header {
+.git-history-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -42,7 +42,7 @@
   border-radius: 12px 12px 0 0;
 }
 
-.gitgalaxy-title {
+.git-history-title {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -51,12 +51,12 @@
   font-weight: 600;
 }
 
-.gitgalaxy-logo {
+.git-history-logo {
   font-size: 20px;
   color: #00d4ff;
 }
 
-.gitgalaxy-close {
+.git-history-close {
   background: none;
   border: none;
   color: #64748b;
@@ -67,17 +67,17 @@
   transition: color 0.2s;
 }
 
-.gitgalaxy-close:hover {
+.git-history-close:hover {
   color: #fff;
 }
 
-.gitgalaxy-body {
+.git-history-body {
   padding: 24px;
   min-height: 350px;
   color: #e2e8f0;
 }
 
-.gitgalaxy-loading {
+.git-history-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -86,33 +86,33 @@
   color: #64748b;
 }
 
-.gitgalaxy-spinner {
+.git-history-spinner {
   width: 32px;
   height: 32px;
   border: 3px solid #1e3a5f;
   border-top-color: #00d4ff;
   border-radius: 50%;
-  animation: gitgalaxy-spin 1s linear infinite;
+  animation: git-history-spin 1s linear infinite;
   margin-bottom: 12px;
 }
 
-@keyframes gitgalaxy-spin {
+@keyframes git-history-spin {
   to { transform: rotate(360deg); }
 }
 
-.gitgalaxy-error {
+.git-history-error {
   text-align: center;
   padding: 40px;
   color: #ef4444;
 }
 
-.gitgalaxy-error small {
+.git-history-error small {
   color: #64748b;
   display: block;
   margin-top: 8px;
 }
 
-.gitgalaxy-footer {
+.git-history-footer {
   padding: 12px 20px;
   border-top: 1px solid #1e3a5f;
   text-align: center;
@@ -120,12 +120,12 @@
   color: #475569;
 }
 
-.gitgalaxy-footer a {
+.git-history-footer a {
   color: #00d4ff;
   text-decoration: none;
 }
 
-.gitgalaxy-footer a:hover {
+.git-history-footer a:hover {
   text-decoration: underline;
 }
 

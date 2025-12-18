@@ -1,6 +1,6 @@
-# GitGalaxy Chrome Extension
+# Git History Chrome Extension
 
-View GitHub star history for any repository, right from GitHub.
+View GitHub star history for any repository, right from GitHub at git-history.com.
 
 ## Features
 
@@ -26,11 +26,11 @@ Coming soon!
 
 ### 1. Backend API
 
-The extension needs the GitGalaxy Motia backend running:
+The extension needs the Git History Motia backend running:
 
 ```bash
 # Local development
-cd /path/to/gitgalaxy
+cd /path/to/git-history
 npm run dev
 ```
 
@@ -100,7 +100,7 @@ You can use any image editor or generate from an SVG.
 ## Deploying to Motia Cloud
 
 ```bash
-# From the gitgalaxy directory
+# From the git-history directory
 npx motia login
 npx motia deploy
 

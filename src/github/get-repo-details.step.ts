@@ -18,7 +18,7 @@ export const handler: Handlers['GetRepositoryDetails'] = async (req, ctx) => {
   
   const headers: Record<string, string> = {
     'Accept': 'application/vnd.github.v3+json',
-    'User-Agent': 'GitGalaxy-App',
+    'User-Agent': 'Git-History-App',
   }
   
   // Use provided token or environment variable

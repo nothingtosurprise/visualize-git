@@ -25,7 +25,7 @@
     }
   },
   {
-    "id": "gitgalaxy",
+    "id": "git-history",
     "config": {
       "src/github/watch-repo.step.ts": {
         "x": -118,

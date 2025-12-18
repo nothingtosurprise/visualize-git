@@ -22,7 +22,7 @@ export const config: ApiRouteConfig = {
   type: 'api',
   name: 'WatchRepo',
   description: 'Start watching a GitHub repository for changes (local dev only)',
-  flows: ['gitgalaxy'],
+  flows: ['git-history'],
   method: 'POST',
   path: '/api/github/watch',
   bodySchema,

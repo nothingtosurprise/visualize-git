@@ -21,7 +21,7 @@ export const config: ApiRouteConfig = {
   type: 'api',
   name: 'GetStarHistory',
   description: 'Fetches GitHub repository star history with timestamps',
-  flows: ['gitgalaxy'],
+  flows: ['git-history'],
   method: 'GET',
   path: '/api/github/stars/:owner/:repo',
   queryParams: [

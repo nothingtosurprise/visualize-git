@@ -6,8 +6,8 @@ interface ControlsProps {
   onVisualize: (owner: string, repo: string, token: string) => void;
 }
 
-const STORAGE_KEY = 'gitgalaxy_repo';
-const TOKEN_KEY = 'gitgalaxy_token';
+const STORAGE_KEY = 'git_history_repo';
+const TOKEN_KEY = 'git_history_token';
 
 const Controls: React.FC<ControlsProps> = ({ isLoading, onVisualize }) => {
   const [inputValue, setInputValue] = useState(() => {
@@ -91,7 +91,7 @@ const Controls: React.FC<ControlsProps> = ({ isLoading, onVisualize }) => {
             />
           <p className="text-[9px] text-[#475569]">
             Increases rate limit · <a 
-              href="https://github.com/settings/tokens/new?scopes=public_repo&description=GitGalaxy" 
+              href="https://github.com/settings/tokens/new?scopes=public_repo&description=Git-History" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-[#00d4ff] hover:underline"

@@ -1,5 +1,5 @@
 {
-  "name": "GitGalaxy",
-  "description": "Visualize GitHub repositories as stunning, interactive force-directed graphs using D3.js and Framer Motion.",
+  "name": "Git History",
+  "description": "Visualize GitHub repositories as stunning, interactive force-directed graphs. Track star history and embed beautiful charts at git-history.com.",
   "requestFramePermissions": []
 }

@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: req.method,
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'GitGalaxy-Vercel-Proxy',
+        'User-Agent': 'Git-History-Vercel-Proxy',
       },
       body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined,
     })

@@ -20,11 +20,11 @@ function createStarHistoryButton() {
   if (!actionsList) return;
   
   // Don't add if already exists
-  if (document.getElementById('gitgalaxy-button')) return;
+  if (document.getElementById('git-history-button')) return;
   
   // Create button
   const li = document.createElement('li');
-  li.id = 'gitgalaxy-button';
+  li.id = 'git-history-button';
   
   const button = document.createElement('button');
   button.className = 'btn btn-sm';
@@ -56,31 +56,31 @@ function createStarHistoryButton() {
 // Show star history modal
 async function showStarHistoryModal(owner, repo) {
   // Remove existing modal
-  const existing = document.getElementById('gitgalaxy-modal');
+  const existing = document.getElementById('git-history-modal');
   if (existing) existing.remove();
   
   // Create modal
   const modal = document.createElement('div');
-  modal.id = 'gitgalaxy-modal';
+  modal.id = 'git-history-modal';
   modal.innerHTML = `
-    <div class="gitgalaxy-overlay"></div>
-    <div class="gitgalaxy-content">
-      <div class="gitgalaxy-header">
-        <div class="gitgalaxy-title">
-          <span class="gitgalaxy-logo">✦</span>
+    <div class="git-history-overlay"></div>
+    <div class="git-history-content">
+      <div class="git-history-header">
+        <div class="git-history-title">
+          <span class="git-history-logo">✦</span>
           <span>Star History - ${owner}/${repo}</span>
         </div>
-        <button class="gitgalaxy-close">×</button>
+        <button class="git-history-close">×</button>
       </div>
-      <div class="gitgalaxy-body">
-        <div class="gitgalaxy-loading">
-          <div class="gitgalaxy-spinner"></div>
+      <div class="git-history-body">
+        <div class="git-history-loading">
+          <div class="git-history-spinner"></div>
           <span>Loading star history...</span>
         </div>
       </div>
-      <div class="gitgalaxy-footer">
+      <div class="git-history-footer">
         Powered by <a href="https://motia.dev" target="_blank">Motia</a> · 
-        <a href="https://github.com/MotiaDev/gitgalaxy" target="_blank">GitGalaxy</a>
+        <a href="https://git-history.com" target="_blank">git-history.com</a>
       </div>
     </div>
   `;
@@ -88,15 +88,15 @@ async function showStarHistoryModal(owner, repo) {
   document.body.appendChild(modal);
   
   // Close handlers
-  modal.querySelector('.gitgalaxy-overlay').onclick = () => modal.remove();
-  modal.querySelector('.gitgalaxy-close').onclick = () => modal.remove();
+  modal.querySelector('.git-history-overlay').onclick = () => modal.remove();
+  modal.querySelector('.git-history-close').onclick = () => modal.remove();
   
   // Fetch and render
   try {
     const response = await fetch(`${API_BASE}/api/github/stars/${owner}/${repo}`);
     const data = await response.json();
     
-    const body = modal.querySelector('.gitgalaxy-body');
+    const body = modal.querySelector('.git-history-body');
     
     if (data.history && data.history.length >= 2) {
       body.innerHTML = renderChart(data.history, data.totalStars);
@@ -106,10 +106,10 @@ async function showStarHistoryModal(owner, repo) {
       body.innerHTML = renderChart(simulated, data.totalStars || 0);
     }
   } catch (error) {
-    modal.querySelector('.gitgalaxy-body').innerHTML = `
-      <div class="gitgalaxy-error">
+    modal.querySelector('.git-history-body').innerHTML = `
+      <div class="git-history-error">
         Failed to load star history. 
-        <br><small>Make sure the GitGalaxy backend is running.</small>
+        <br><small>Make sure the git-history.com backend is running.</small>
       </div>
     `;
   }

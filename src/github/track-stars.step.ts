@@ -22,7 +22,7 @@ export const config: ApiRouteConfig = {
   type: 'api',
   name: 'TrackStars',
   description: 'Start tracking a repository stars in real-time',
-  flows: ['gitgalaxy'],
+  flows: ['git-history'],
   method: 'POST',
   path: '/api/github/track-stars',
   bodySchema,

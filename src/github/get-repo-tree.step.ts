@@ -33,7 +33,7 @@ export const config: ApiRouteConfig = {
   type: 'api',
   name: 'GetRepoTree',
   description: 'Fetches GitHub repository file tree and transforms it for visualization',
-  flows: ['gitgalaxy'],
+  flows: ['git-history'],
   method: 'GET',
   path: '/api/github/tree/:owner/:repo',
   queryParams: [

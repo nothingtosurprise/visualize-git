@@ -14,8 +14,8 @@ const Analytics = lazy(() =>
   import('@vercel/analytics/react').then(mod => ({ default: mod.Analytics })).catch(() => ({ default: () => null }))
 );
 
-const STORAGE_KEY = 'gitgalaxy_repo';
-const TOKEN_KEY = 'gitgalaxy_token';
+const STORAGE_KEY = 'git_history_repo';
+const TOKEN_KEY = 'git_history_token';
 
 const App: React.FC = () => {
   const [data, setData] = useState<RepoData>({ nodes: [], links: [] });
@@ -203,7 +203,7 @@ const App: React.FC = () => {
                 <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="0.5" opacity="0.3"/>
               </svg>
               <h1 className="text-lg font-semibold tracking-tight text-white">
-                git<span className="text-[#00d4ff]">galaxy</span>
+                git<span className="text-[#00d4ff]">-history</span>
                 </h1>
               {isWatching && (
                 <span className="flex items-center gap-1 text-[10px] text-[#22c55e] bg-[#22c55e]/10 px-2 py-0.5 rounded-full border border-[#22c55e]/20">

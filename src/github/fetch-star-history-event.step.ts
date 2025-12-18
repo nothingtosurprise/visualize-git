@@ -11,7 +11,7 @@ export const config: EventConfig = {
   type: 'event',
   name: 'FetchStarHistoryEvent',
   description: 'Background job to fetch and store star history data',
-  flows: ['gitgalaxy'],
+  flows: ['git-history'],
   subscribes: ['fetch-star-history'],
   emits: [],
   input: inputSchema,

@@ -1,8 +1,8 @@
-# GitGalaxy ✦
+# Git History ✦
 
-A beautiful GitHub repository visualizer with star history tracking, powered by **Motia**.
+A beautiful GitHub repository visualizer with star history tracking at **git-history.com**, powered by **Motia**.
 
-![GitGalaxy Screenshot](./public/galaxy.png)
+![Git History Screenshot](./public/galaxy.png)
 ![git star history](./public/git-star-history.png)
 
 ## Features
@@ -71,7 +71,7 @@ Inspired by [GitHub Next's Repo Visualization](https://githubnext.com/projects/r
 
 ```bash
 git clone <your-repo-url>
-cd gitgalaxy
+cd git-history
 npm install
 ```
 
@@ -519,7 +519,7 @@ Vercel automatically deploys on every push to your repository:
 Add your own domain in Vercel Dashboard:
 
 1. Go to **Settings → Domains**
-2. Add domain (e.g., `gitgalaxy.com`)
+2. Add domain (e.g., `git-history.com`)
 3. Update DNS records as instructed
 4. Update `VITE_API_BASE` if backend URL changes
 
@@ -581,7 +581,7 @@ See [chrome-extension/README.md](chrome-extension/README.md) for detailed instru
 ### Project Structure
 
 ```
-gitgalaxy/
+git-history/
 ├── src/
 │   └── github/              # Motia Backend Steps
 │       ├── get-repo-details.step.ts    # API: Fetch repo metadata
@@ -861,7 +861,7 @@ If you're still stuck:
 
 ## Frequently Asked Questions
 
-**Q: Do I need to deploy to use GitGalaxy?**  
+**Q: Do I need to deploy to use Git History?**  
 A: No! You can run it locally. Deployment is only needed for the Chrome extension and embeddable charts.
 
 **Q: Why does it show "simulated" data for star history?**  

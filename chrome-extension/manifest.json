@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "GitGalaxy - Star History",
+  "name": "Git History - Star History",
   "version": "1.0.0",
-  "description": "View GitHub star history for any repository. Powered by Motia.",
+  "description": "View GitHub star history for any repository at git-history.com. Powered by Motia.",
   "permissions": [
     "activeTab",
     "storage"

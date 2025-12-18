@@ -68,7 +68,7 @@ async function fetchStarHistory(
 ): Promise<{ totalStars: number; history: StarDataPoint[] } | null> {
   const headers: Record<string, string> = {
     'Accept': 'application/vnd.github.star+json', // Get starred_at timestamps
-    'User-Agent': 'GitGalaxy-Embed',
+    'User-Agent': 'Git-History-Embed',
   }
   
   // Use provided token or environment variable
@@ -408,7 +408,7 @@ function generateSVG(repos: RepoData[], theme: string): string {
   
   <!-- Watermark -->
   <text x="${width - 12}" y="${height - 12}" text-anchor="end" font-size="9" fill="${colors.watermark}" opacity="0.7">
-    gitgalaxy · powered by motia.dev
+    git-history.com · powered by motia.dev
   </text>
 </svg>`
 }

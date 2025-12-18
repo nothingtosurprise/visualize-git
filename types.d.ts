@@ -18,10 +18,10 @@ declare module 'motia' {
     'GetStarHistory': ApiRouteHandler<Record<string, unknown>, ApiResponse<200, { owner: string; repo: string; totalStars: number; history: Array<{ date: string; stars: number }> }> | ApiResponse<403, { error: string }> | ApiResponse<500, { error: string }>, never>
     'GetRepoTree': ApiRouteHandler<Record<string, unknown>, ApiResponse<200, { nodes: Array<{ id: string; name: string; type: 'blob' | 'tree'; path: string; size?: number; extension?: string; parentId?: string | unknown; fx?: number; fy?: number }>; links: Array<{ source: string; target: string }> }> | ApiResponse<403, { error: string }> | ApiResponse<500, { error: string }>, never>
     'Get Repository Details': ApiRouteHandler<Record<string, unknown>, unknown, never>
+    'Get Commits': ApiRouteHandler<Record<string, unknown>, unknown, never>
     'FetchStarHistoryEvent': EventHandler<{ owner: string; repo: string; token?: string }, never>
     'EmbedStarHistory': ApiRouteHandler<Record<string, unknown>, unknown, never>
     'EmbedStarBadge': ApiRouteHandler<Record<string, unknown>, unknown, never>
-    'Get Commits': ApiRouteHandler<Record<string, unknown>, unknown, never>
   }
     
 }
