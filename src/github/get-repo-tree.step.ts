@@ -1,7 +1,7 @@
 import { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
 
-const MAX_NODES = 200 // Limit nodes to prevent performance issues
+const MAX_NODES = 2000 // Limit nodes to prevent performance issues (increased for large repos)
 
 const nodeSchema = z.object({
   id: z.string(),
@@ -109,7 +109,22 @@ export const handler: Handlers['GetRepoTree'] = async (req, { logger }) => {
     const tree: TreeItem[] = data.tree
 
     // Process tree into Nodes and Links
-    const slicedTree = tree.length > MAX_NODES ? tree.slice(0, MAX_NODES) : tree
+    // Prioritize folders (trees) over files to preserve structure
+    let slicedTree: TreeItem[]
+    if (tree.length > MAX_NODES) {
+      const folders = tree.filter(item => item.type === 'tree')
+      const files = tree.filter(item => item.type === 'blob')
+      const remainingSlots = MAX_NODES - folders.length
+      slicedTree = [...folders, ...files.slice(0, Math.max(0, remainingSlots))]
+      logger.info('Tree truncated', { 
+        original: tree.length, 
+        folders: folders.length, 
+        filesIncluded: Math.min(files.length, remainingSlots),
+        total: slicedTree.length 
+      })
+    } else {
+      slicedTree = tree
+    }
 
     const nodes: RepoNode[] = []
     const links: RepoLink[] = []
