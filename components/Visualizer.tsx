@@ -169,27 +169,34 @@ const Visualizer: React.FC<VisualizerProps> = ({
   const [activeFiles, setActiveFiles] = useState<Set<string>>(new Set());
   const [currentCommit, setCurrentCommit] = useState<CommitData | null>(null);
   const [foldersOnly, setFoldersOnly] = useState(false); // Show only folders for large repos
-  const [autoSwitched, setAutoSwitched] = useState(false); // Track if we auto-switched to pack
+  const [autoSwitched, setAutoSwitched] = useState(false); // Track if we auto-switched
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['ROOT'])); // Start with only ROOT expanded
   const [selectedNode, setSelectedNode] = useState<RepoNode | null>(null); // For detail panel
+
+  // Detect mobile viewport
+  const isMobile = dimensions.width < 640; // sm breakpoint
 
   // Check graph size
   const nodeCount = data.nodes.length;
   const isLargeGraph = nodeCount > 600;
   const isMediumGraph = nodeCount > 300;
 
-  // Collapsible mode is now a manual toggle, not automatic
+  // Collapsible mode - manual toggle on desktop, auto for mobile large repos
   const [collapsibleMode, setCollapsibleMode] = useState(false);
   const useCollapsibleMode = collapsibleMode && layoutMode === 'force';
+
+  // Auto-enable Tree mode on mobile for large repos (much cleaner experience)
+  useEffect(() => {
+    if (isMobile && isLargeGraph && !autoSwitched) {
+      setCollapsibleMode(true);
+      setExpandedNodes(new Set(['ROOT']));
+      setAutoSwitched(true);
+    }
+  }, [isMobile, isLargeGraph, autoSwitched]);
 
   // Keyboard navigation state
   const [focusedNodeIndex, setFocusedNodeIndex] = useState<number>(-1);
   const [showHelp, setShowHelp] = useState(false);
-
-  // Get the currently focused node
-  const focusedNode = focusedNodeIndex >= 0 && focusedNodeIndex < filteredData.nodes.length 
-    ? filteredData.nodes[focusedNodeIndex] 
-    : null;
 
   // Toggle node expansion
   const toggleNodeExpansion = useCallback((nodeId: string) => {
@@ -268,6 +275,11 @@ const Visualizer: React.FC<VisualizerProps> = ({
     // Normal mode: show all nodes
     return data;
   }, [data, foldersOnly, useCollapsibleMode, expandedNodes]);
+
+  // Get the currently focused node (for keyboard navigation)
+  const focusedNode = focusedNodeIndex >= 0 && focusedNodeIndex < filteredData.nodes.length 
+    ? filteredData.nodes[focusedNodeIndex] 
+    : null;
 
   // Generate random stars for background
   const stars = useMemo(() => {
@@ -1616,8 +1628,57 @@ const Visualizer: React.FC<VisualizerProps> = ({
         {foldersOnly && !collapsibleMode && ' · Folders Only'}
       </div>
 
-      {/* Mobile Legend */}
-      <div className="absolute bottom-24 left-2 sm:hidden">
+      {/* Mobile Mode Bar - Simple mode switcher for mobile */}
+      <div className="absolute bottom-20 left-2 right-2 sm:hidden">
+        <div className="flex items-center justify-between bg-[#0d1424]/95 border border-[#1e3a5f] rounded-lg px-3 py-2">
+          {/* Current mode info */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[#64748b]">
+              {collapsibleMode ? '🌳 Tree' : layoutMode === 'pack' ? '📦 Pack' : '⚡ Force'}
+            </span>
+            <span className="text-[10px] text-[#475569]">
+              {filteredData.nodes.length} nodes
+            </span>
+          </div>
+          
+          {/* Quick mode toggles */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                if (collapsibleMode) {
+                  setCollapsibleMode(false);
+                } else {
+                  setCollapsibleMode(true);
+                  setExpandedNodes(new Set(['ROOT']));
+                }
+              }}
+              className={`px-2 py-1 rounded text-[10px] font-medium ${
+                collapsibleMode ? 'bg-[#8b5cf6] text-white' : 'bg-[#1e3a5f] text-[#94a3b8]'
+              }`}
+            >
+              🌳
+            </button>
+            <button
+              onClick={() => setLayoutMode(layoutMode === 'pack' ? 'force' : 'pack')}
+              className={`px-2 py-1 rounded text-[10px] font-medium ${
+                layoutMode === 'pack' ? 'bg-[#00d4ff] text-[#0d1424]' : 'bg-[#1e3a5f] text-[#94a3b8]'
+              }`}
+            >
+              📦
+            </button>
+          </div>
+        </div>
+        
+        {/* Tree mode tip on mobile */}
+        {collapsibleMode && (
+          <div className="mt-1 text-center text-[9px] text-[#64748b]">
+            Tap <span className="text-[#22c55e]">+</span> on folders to expand
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Legend - hidden on mobile */}
+      <div className="absolute bottom-24 left-2 hidden">
         <div className="flex flex-wrap items-center gap-2 bg-[#0d1424]/90 border border-[#1e3a5f] rounded-lg px-2 py-1.5 max-w-[200px]">
           {layoutMode === 'force' ? (
             <>
