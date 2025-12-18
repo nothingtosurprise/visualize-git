@@ -36,54 +36,69 @@ const getForceNodeColor = (node: RepoNode): string => {
   }
 };
 
-// GitHub Next-style VIBRANT color palette for Pack mode only
+// GitHub Next-style VIBRANT & VARIED color palette for Pack mode
 const PACK_FILE_COLORS: Record<string, string> = {
-  // TypeScript - Bright Blue
-  'ts': '#3b82f6',
-  'tsx': '#60a5fa',
-  // JavaScript - Bright Yellow  
-  'js': '#facc15',
-  'jsx': '#fde047',
-  'mjs': '#eab308',
-  'cjs': '#ca8a04',
-  // Styles - Pink/Magenta
-  'css': '#ec4899',
-  'scss': '#f472b6',
+  // TypeScript - Electric Cyan/Blue
+  'ts': '#00d4ff',
+  'tsx': '#38bdf8',
+  'd.ts': '#7dd3fc',
+  // JavaScript - Golden Yellow
+  'js': '#fbbf24',
+  'jsx': '#fcd34d',
+  'mjs': '#f59e0b',
+  'cjs': '#d97706',
+  // Styles - Hot Pink/Magenta
+  'css': '#f472b6',
+  'scss': '#ec4899',
   'sass': '#db2777',
-  'less': '#be185d',
-  // HTML/Templates - Orange
-  'html': '#f97316',
-  'vue': '#22c55e',
-  'svelte': '#ef4444',
-  // Config/Data - Teal/Cyan
-  'json': '#06b6d4',
-  'yml': '#14b8a6',
+  'less': '#e879f9',
+  // HTML/Templates - Orange/Coral
+  'html': '#fb923c',
+  'vue': '#4ade80',
+  'svelte': '#ff6b6b',
+  // Config/Data - Teal/Aqua
+  'json': '#2dd4bf',
+  'yml': '#5eead4',
   'yaml': '#14b8a6',
   'toml': '#0d9488',
-  // Docs - Purple
-  'md': '#a855f7',
-  'mdx': '#c084fc',
-  // Python - Green
-  'py': '#22c55e',
-  // Go - Cyan
-  'go': '#06b6d4',
-  // Rust - Orange/Red
-  'rs': '#f97316',
-  // Java/Kotlin - Orange
-  'java': '#f59e0b',
-  'kt': '#fbbf24',
-  // Ruby - Red
-  'rb': '#ef4444',
+  'xml': '#06b6d4',
+  // Docs - Coral/Salmon (warm, not purple!)
+  'md': '#fb7185',
+  'mdx': '#fda4af',
+  'txt': '#fca5a5',
+  // Python - Bright Green
+  'py': '#4ade80',
+  'pyx': '#86efac',
+  // Go - Bright Cyan
+  'go': '#22d3ee',
+  'mod': '#67e8f9',
+  // Rust - Burnt Orange
+  'rs': '#ea580c',
+  // Java/Kotlin - Warm Amber
+  'java': '#fbbf24',
+  'kt': '#f59e0b',
+  // Ruby - Cherry Red
+  'rb': '#f87171',
+  'erb': '#fca5a5',
   // PHP - Indigo
-  'php': '#6366f1',
-  // Shell
-  'sh': '#84cc16',
-  // Images
-  'png': '#8b5cf6',
-  'svg': '#a78bfa',
-  'gif': '#6d28d9',
-  // Default
-  'default': '#94a3b8',
+  'php': '#818cf8',
+  // Shell/Scripts - Lime Green
+  'sh': '#a3e635',
+  'bash': '#84cc16',
+  'zsh': '#65a30d',
+  // Images - Emerald/Teal (distinct from code)
+  'png': '#34d399',
+  'jpg': '#10b981',
+  'jpeg': '#10b981',
+  'svg': '#6ee7b7',
+  'gif': '#059669',
+  'ico': '#047857',
+  'webp': '#0d9488',
+  // Lock/Config - Cool Gray
+  'lock': '#64748b',
+  'env': '#78716c',
+  // Default - Soft lavender
+  'default': '#c4b5fd',
 };
 
 // Get Pack mode vibrant color (GitHub Next style)
@@ -280,33 +295,50 @@ const Visualizer: React.FC<VisualizerProps> = ({
       nodesMapRef.current.set(d.data.id, { x: d.x + offsetX, y: d.y + offsetY });
     });
 
-    // Root: Dark background with dashed border
+    // Color palette for folder rings based on depth
+    const folderRingColors = [
+      '#00d4ff', // cyan - depth 1
+      '#4ade80', // green - depth 2
+      '#fbbf24', // amber - depth 3
+      '#f472b6', // pink - depth 4
+      '#818cf8', // indigo - depth 5
+      '#fb7185', // coral - depth 6+
+    ];
+    
+    const getFolderRingColor = (depth: number): string => {
+      const idx = Math.min(depth - 1, folderRingColors.length - 1);
+      return folderRingColors[Math.max(0, idx)];
+    };
+
+    // Root: Dark background with glowing cyan border
     nodeGroups.filter(d => d.children && d.depth === 0)
       .append('circle')
       .attr('r', d => d.r)
-      .attr('fill', '#050810')
-      .attr('stroke', '#334155')
-      .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '4 4')
-      .attr('opacity', 0.8);
+      .attr('fill', '#0a0f1a')
+      .attr('stroke', '#00d4ff')
+      .attr('stroke-width', 2)
+      .attr('stroke-opacity', 0.4)
+      .attr('stroke-dasharray', '8 4');
 
-    // Inner Folders - subtle
+    // Inner Folders - subtle with colored ring
     nodeGroups.filter(d => d.children && d.depth > 0)
       .append('circle')
       .attr('r', d => d.r)
-      .attr('fill', '#1e293b')
-      .attr('fill-opacity', 0.1)
-      .attr('stroke', '#475569')
-      .attr('stroke-width', 1)
-      .attr('stroke-opacity', 0.3);
+      .attr('fill', '#0f172a')
+      .attr('fill-opacity', 0.3)
+      .attr('stroke', d => getFolderRingColor(d.depth))
+      .attr('stroke-width', 1.5)
+      .attr('stroke-opacity', 0.35);
 
-    // Files - vibrant dots
+    // Files - vibrant dots with subtle glow
     nodeGroups.filter(d => !d.children)
       .append('circle')
-      .attr('r', d => Math.max(2, d.r - 1.5))
+      .attr('r', d => Math.max(3, d.r))
       .attr('fill', d => getPackNodeColor(d.data))
-      .attr('fill-opacity', 1)
-      .attr('stroke', 'none');
+      .attr('fill-opacity', 0.9)
+      .attr('stroke', d => getPackNodeColor(d.data))
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.5);
 
     // Labels for significant groups
     nodeGroups.filter(d => d.children && d.r > 40)
@@ -994,24 +1026,28 @@ const Visualizer: React.FC<VisualizerProps> = ({
           /* Pack mode: GitHub Next vibrant colors */
           <div className="text-[10px] text-[#94a3b8] space-y-1">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#00d4ff]" />
               <span>TypeScript</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#facc15]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#fbbf24]" />
               <span>JavaScript</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#ec4899]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#f472b6]" />
               <span>Styles</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#fb7185]" />
               <span>Docs</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#06b6d4]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#2dd4bf]" />
               <span>Config</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#34d399]" />
+              <span>Images</span>
             </div>
           </div>
         )}
@@ -1047,19 +1083,19 @@ const Visualizer: React.FC<VisualizerProps> = ({
           ) : (
             <>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#3b82f6]" />
+                <span className="w-2 h-2 rounded-full bg-[#00d4ff]" />
                 <span className="text-[8px] text-[#94a3b8]">TS</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#facc15]" />
+                <span className="w-2 h-2 rounded-full bg-[#fbbf24]" />
                 <span className="text-[8px] text-[#94a3b8]">JS</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#ec4899]" />
+                <span className="w-2 h-2 rounded-full bg-[#f472b6]" />
                 <span className="text-[8px] text-[#94a3b8]">CSS</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#a855f7]" />
+                <span className="w-2 h-2 rounded-full bg-[#fb7185]" />
                 <span className="text-[8px] text-[#94a3b8]">MD</span>
               </div>
             </>
