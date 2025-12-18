@@ -248,14 +248,10 @@ const Visualizer: React.FC<VisualizerProps> = ({
     
     const hierarchy = buildHierarchy(data.nodes);
     
-    // Generous margins to avoid any header overlap
-    const topMargin = 280;
-    const bottomMargin = 100;
-    const sideMargin = 50;
-    
-    const availableHeight = dimensions.height - topMargin - bottomMargin;
-    const availableWidth = dimensions.width - (sideMargin * 2);
-    const size = Math.min(availableWidth, availableHeight);
+    // Use most of the viewport for the pack
+    const margin = 40;
+    const availableSize = Math.min(dimensions.width, dimensions.height) - (margin * 2);
+    const size = Math.max(400, availableSize * 0.85); // Use 85% of available space
     
     // More padding between circles for clean look
     const pack = d3.pack<RepoNode>()
@@ -264,9 +260,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
     
     const root = pack(hierarchy);
     
-    // Position: Center horizontally, push down below header
+    // Center the pack at origin (0, 0) - zoom transform will position it on screen
     const offsetX = -size / 2;
-    const offsetY = (topMargin + size / 2) - (dimensions.height / 2);
+    const offsetY = -size / 2;
     
     const allNodes = root.descendants();
     
@@ -595,94 +591,190 @@ const Visualizer: React.FC<VisualizerProps> = ({
   useEffect(() => {
     if (!currentCommit || !gRef.current || !svgRef.current || !zoomRef.current) return;
 
+    // Log animation info for debugging
+    console.log('[Gource] Commit:', currentCommit.sha.substring(0, 7), 
+      '| Files:', currentCommit.files.length, 
+      '| Layout:', layoutMode,
+      '| Nodes:', nodesMapRef.current.size);
+
     const g = d3.select(gRef.current);
-    const svg = d3.select(svgRef.current);
     
     // Get current transform to calculate positions
     const transform = d3.zoomTransform(svgRef.current);
     
-    // Author position (bottom-left where the avatar UI is)
-    // We project screen coordinates to SVG coordinates
-    // Avatar is at roughly (60, height - 220)
-    const screenX = 60;
-    const screenY = dimensions.height - 220;
+    // Author position - bottom-left of visible area, converted to SVG coordinates
+    const screenX = 80;
+    const screenY = dimensions.height - 200;
     const [startX, startY] = transform.invert([screenX, screenY]);
+    
+    // Remove any existing avatar
+    g.selectAll('.commit-avatar').remove();
+    
+    // Add author avatar at the source of projectiles (inside SVG)
+    if (currentCommit.author.avatar) {
+      const avatarSize = 24 / transform.k; // Scale inversely to zoom
+      
+      // Create avatar group
+      const avatarGroup = g.append('g')
+        .attr('class', 'commit-avatar')
+        .attr('transform', `translate(${startX}, ${startY})`);
+      
+      // Glow behind avatar
+      avatarGroup.append('circle')
+        .attr('r', avatarSize + 4)
+        .attr('fill', '#f59e0b')
+        .attr('opacity', 0.4)
+        .attr('filter', 'url(#glow)');
+      
+      // Clip path for circular avatar
+      const clipId = `avatar-clip-${currentCommit.sha.substring(0, 7)}`;
+      avatarGroup.append('clipPath')
+        .attr('id', clipId)
+        .append('circle')
+        .attr('r', avatarSize);
+      
+      // Avatar image
+      avatarGroup.append('image')
+        .attr('href', currentCommit.author.avatar)
+        .attr('x', -avatarSize)
+        .attr('y', -avatarSize)
+        .attr('width', avatarSize * 2)
+        .attr('height', avatarSize * 2)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('opacity', 1);
+      
+      // Border around avatar
+      avatarGroup.append('circle')
+        .attr('r', avatarSize)
+        .attr('fill', 'none')
+        .attr('stroke', '#f59e0b')
+        .attr('stroke-width', 2 / transform.k);
+      
+      // Fade out avatar after animation completes
+      avatarGroup.transition()
+        .delay(1500)
+        .duration(500)
+        .attr('opacity', 0)
+        .remove();
+    }
 
     currentCommit.files.forEach(file => {
-      // Find the node for this file
+      // Find the node for this file using multiple matching strategies
       let targetNode: { x: number, y: number } | undefined;
       
-      if (layoutMode === 'force') {
-        // For force layout, we need to find the node in the data
-        const node = data.nodes.find(n => n.path === file.filename);
-        if (node && (node as any).x !== undefined) {
-          targetNode = { x: (node as any).x, y: (node as any).y };
-        }
-      } else {
-        // For pack layout, use the map
-        // Need to find ID from path... this is tricky without a reverse map
-        // We'll search the nodesMapRef values? No, keys are IDs.
-        // Let's iterate nodes to find ID matching path
-        const node = data.nodes.find(n => n.path === file.filename);
-        if (node) {
-          targetNode = nodesMapRef.current.get(node.id);
+      // Try to find the matching node - file.filename might be like "src/github/file.ts"
+      // node.path might be like "src/github/file.ts" or "github/file.ts" or just "file.ts"
+      const filename = file.filename;
+      const filenameOnly = filename.split('/').pop() || filename;
+      
+      // Find matching node by path (try multiple matching strategies)
+      const node = data.nodes.find(n => {
+        if (!n.path) return false;
+        // Exact match
+        if (n.path === filename) return true;
+        // Match without leading slash
+        if (n.path === filename.replace(/^\//, '') || filename === n.path.replace(/^\//, '')) return true;
+        // Match by filename only (for files in different directory representations)
+        const nodeName = n.path.split('/').pop() || n.path;
+        if (nodeName === filenameOnly && n.type === 'blob') return true;
+        return false;
+      });
+      
+      // Use nodesMapRef for both force and pack layouts (it stores current positions)
+      if (node) {
+        const pos = nodesMapRef.current.get(node.id);
+        // Verify position is valid (not NaN or undefined)
+        if (pos && isFinite(pos.x) && isFinite(pos.y)) {
+          targetNode = pos;
+        } else {
+          console.log('[Gource] Invalid position for node:', node.id, pos);
         }
       }
 
       if (targetNode) {
-        // Create projectile
+        // Calculate distance for animation timing
+        const distance = Math.sqrt(Math.pow(targetNode.x - startX, 2) + Math.pow(targetNode.y - startY, 2));
+        const duration = Math.min(800, Math.max(300, distance * 0.5));
+        
+        // Create glowing trail line first (will be under the projectile)
+        const trail = g.append('line')
+          .attr('x1', startX)
+          .attr('y1', startY)
+          .attr('x2', startX)
+          .attr('y2', startY)
+          .attr('stroke', '#f59e0b')
+          .attr('stroke-width', 2)
+          .attr('opacity', 0.6)
+          .attr('filter', 'url(#glow)');
+        
+        // Animate trail to follow projectile
+        trail.transition()
+          .duration(duration)
+          .ease(d3.easeLinear)
+          .attr('x2', targetNode.x)
+          .attr('y2', targetNode.y)
+          .transition()
+          .duration(300)
+          .attr('opacity', 0)
+          .remove();
+
+        // Create projectile (larger and brighter)
         const projectile = g.append('circle')
           .attr('cx', startX)
           .attr('cy', startY)
-          .attr('r', 3)
-          .attr('fill', '#f59e0b') // Amber/Gold color
+          .attr('r', 6)
+          .attr('fill', '#fbbf24')
           .attr('filter', 'url(#glow)')
-          .attr('opacity', 0.8);
+          .attr('opacity', 1);
 
         // Animate projectile
         projectile.transition()
-          .duration(400)
-          .ease(d3.easeLinear)
+          .duration(duration)
+          .ease(d3.easeQuadOut)
           .attr('cx', targetNode.x)
           .attr('cy', targetNode.y)
+          .attr('r', 4)
           .on('end', function() {
             // Remove projectile
             d3.select(this).remove();
             
-            // Create explosion/pulse effect at target
-            const explosion = g.append('circle')
+            // Create multiple explosion rings for impact effect
+            for (let i = 0; i < 3; i++) {
+              const explosion = g.append('circle')
+                .attr('cx', targetNode!.x)
+                .attr('cy', targetNode!.y)
+                .attr('r', 3)
+                .attr('fill', 'none')
+                .attr('stroke', i === 0 ? '#fbbf24' : i === 1 ? '#f59e0b' : '#ea580c')
+                .attr('stroke-width', 3 - i)
+                .attr('opacity', 1);
+              
+              explosion.transition()
+                .delay(i * 80)
+                .duration(600)
+                .ease(d3.easeOut)
+                .attr('r', 35 - (i * 8))
+                .attr('opacity', 0)
+                .attr('stroke-width', 0)
+                .remove();
+            }
+            
+            // Flash the target node briefly
+            const flash = g.append('circle')
               .attr('cx', targetNode!.x)
               .attr('cy', targetNode!.y)
-              .attr('r', 2)
-              .attr('fill', 'none')
-              .attr('stroke', '#f59e0b')
-              .attr('stroke-width', 2)
-              .attr('opacity', 1);
-            
-            explosion.transition()
-              .duration(500)
-              .ease(d3.easeOut)
-              .attr('r', 20)
-              .attr('opacity', 0)
-              .attr('stroke-width', 0)
-              .remove();
+              .attr('r', 12)
+              .attr('fill', '#fbbf24')
+              .attr('opacity', 0.8)
+              .attr('filter', 'url(#glow)');
               
-            // Add a temporary beam line
-            const beam = g.append('line')
-              .attr('x1', startX)
-              .attr('y1', startY)
-              .attr('x2', targetNode!.x)
-              .attr('y2', targetNode!.y)
-              .attr('stroke', '#f59e0b')
-              .attr('stroke-width', 1)
-              .attr('opacity', 0.4);
-              
-            beam.transition()
-              .duration(200)
+            flash.transition()
+              .duration(400)
               .attr('opacity', 0)
+              .attr('r', 8)
               .remove();
           });
-      }
+      } // else: node not found in visualization (might be beyond the 200 node limit)
     });
   }, [currentCommit, dimensions, layoutMode, data]);
 
@@ -833,9 +925,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
         )}
       </div>
 
-      {/* Hovered Node Info */}
+      {/* Hovered Node Info - positioned below header with high z-index */}
       {hoveredNode && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[#0d1424]/95 border border-[#1e3a5f] rounded-lg px-3 py-2 pointer-events-none">
+        <div className="absolute top-44 left-1/2 -translate-x-1/2 bg-[#0d1424]/95 border border-[#1e3a5f] rounded-lg px-3 py-2 pointer-events-none z-30 shadow-lg">
           <div className="flex items-center gap-2">
             <span 
               className="w-3 h-3 rounded-full" 
@@ -858,22 +950,6 @@ const Visualizer: React.FC<VisualizerProps> = ({
         </div>
       )}
 
-      {/* Current Commit Author Avatar (Gource-style) - positioned in timeline panel area */}
-      {showTimeline && currentCommit && currentCommit.author.avatar && (
-        <div className="absolute bottom-56 sm:bottom-52 left-8 sm:left-12 pointer-events-none">
-          <div className="relative flex items-center gap-2 bg-[#0d1424]/90 border border-[#f59e0b]/50 rounded-lg px-3 py-2">
-            <img
-              src={currentCommit.author.avatar}
-              alt={currentCommit.author.name}
-              className="w-8 h-8 rounded-full border border-[#f59e0b]"
-            />
-            <div>
-              <div className="text-xs text-white font-medium">{currentCommit.author.name}</div>
-              <div className="text-[10px] text-[#f59e0b]">committing...</div>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* Zoom Controls */}
       <div className="absolute bottom-4 right-4 flex flex-col gap-1">
@@ -1003,7 +1079,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
             </button>
             <TimelinePlayer
               commits={commits}
-              onCommitChange={(commit, index) => setCurrentCommit(commit)}
+              onCommitChange={setCurrentCommit}
               onFilesActive={setActiveFiles}
               isLoading={isLoadingCommits}
             />
