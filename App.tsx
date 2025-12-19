@@ -46,20 +46,71 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Auto-load last viewed repo on mount
+  // Parse repo from URL path (e.g., /kubernetes/kubernetes or /#/kubernetes/kubernetes)
+  const getRepoFromUrl = (): { owner: string; repo: string } | null => {
+    // Check hash first (for hash-based routing like /#/owner/repo)
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#/')) {
+      const parts = hash.slice(2).split('/').filter(Boolean);
+      if (parts.length >= 2) {
+        return { owner: parts[0], repo: parts[1] };
+      }
+    }
+    
+    // Check pathname (for path-based routing like /owner/repo)
+    const path = window.location.pathname;
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      return { owner: parts[0], repo: parts[1] };
+    }
+    
+    return null;
+  };
+
+  // Update URL when repo changes (without page reload)
+  const updateUrlWithRepo = (owner: string, repo: string) => {
+    const newUrl = `/${owner}/${repo}`;
+    if (window.location.pathname !== newUrl) {
+      window.history.pushState({ owner, repo }, '', newUrl);
+    }
+  };
+
+  // Auto-load repo from URL or localStorage on mount
   useEffect(() => {
     if (hasAutoLoaded.current) return;
     hasAutoLoaded.current = true;
     
-    const savedRepo = localStorage.getItem(STORAGE_KEY);
     const savedToken = localStorage.getItem(TOKEN_KEY) || '';
     
+    // Priority: URL > localStorage
+    const urlRepo = getRepoFromUrl();
+    if (urlRepo) {
+      handleVisualize(urlRepo.owner, urlRepo.repo, savedToken);
+      return;
+    }
+    
+    // Fallback to localStorage
+    const savedRepo = localStorage.getItem(STORAGE_KEY);
     if (savedRepo && savedRepo.includes('/')) {
       const [owner, repo] = savedRepo.split('/');
       if (owner && repo) {
         handleVisualize(owner, repo, savedToken);
       }
     }
+  }, []);
+
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const urlRepo = getRepoFromUrl();
+      if (urlRepo) {
+        const savedToken = localStorage.getItem(TOKEN_KEY) || '';
+        handleVisualize(urlRepo.owner, urlRepo.repo, savedToken);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleVisualize = async (owner: string, repo: string, token: string) => {
@@ -82,6 +133,9 @@ const App: React.FC = () => {
     try {
       const info = await fetchRepoDetails(owner, repo, token);
       setRepoInfo(info);
+      
+      // Update URL for sharing (e.g., git-history.com/kubernetes/kubernetes)
+      updateUrlWithRepo(owner, repo);
       
       // Trigger star animation
       setShowStarAnimation(true);
