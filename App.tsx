@@ -87,7 +87,8 @@ const App: React.FC = () => {
       setShowStarAnimation(true);
       setTimeout(() => setShowStarAnimation(false), 5000);
       
-      const treeData = await fetchRepoTree(owner, repo, 'main', token);
+      // Use the repo's actual default branch (master, main, etc.)
+      const treeData = await fetchRepoTree(owner, repo, info.defaultBranch, token);
       setData(treeData);
 
       if (treeData.nodes.length === 0) {
@@ -110,7 +111,7 @@ const App: React.FC = () => {
             (update) => {
               setUpdates(prev => [update, ...prev].slice(0, 8));
               if (update.type === 'commit') {
-                fetchRepoTree(owner, repo, 'main', token)
+                fetchRepoTree(owner, repo, info.defaultBranch, token)
                   .then(newData => setData(newData))
                   .catch(console.error);
               }
@@ -138,11 +139,11 @@ const App: React.FC = () => {
   };
 
   const handleRefresh = async () => {
-    if (!watchId) return;
+    if (!watchId || !repoInfo) return;
     setLoading(true);
     try {
       const [owner, repo] = watchId.split('/');
-      const treeData = await fetchRepoTree(owner, repo, 'main');
+      const treeData = await fetchRepoTree(owner, repo, repoInfo.defaultBranch);
       setData(treeData);
     } catch (err: any) {
       setError(err.message);
