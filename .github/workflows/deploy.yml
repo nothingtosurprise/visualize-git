@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       versionName:
-        description: 'Version Name to deploy'
-        required: true
+        description: 'Version Name to deploy (e.g., v1.2.0)'
+        required: false
       versionDescription:
         description: 'Version Description to deploy'
-        required: true
+        required: false
 
 env:
   # API Key stored as GitHub Secret (NEVER commit API keys to code)
   MOTIA_API_KEY: ${{ secrets.MOTIA_API_KEY }}
-  # Environment ID from Motia Cloud dashboard
+  # Environment ID from Motia Cloud dashboard (Settings tab)
   MOTIA_ENV_ID: ${{ secrets.MOTIA_ENV_ID }}
 
 jobs:
@@ -28,18 +28,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
+          fetch-depth: 0  # Fetch all history for commit count
 
-      - name: Set VERSION_NAME and DESCRIPTION
-        id: meta
+      - name: Generate Version Number
+        id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Get commit count for incremental versioning
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          # Calculate version: major.minor.patch based on commit count
+          MAJOR=1
+          MINOR=$((COMMIT_COUNT / 100))
+          PATCH=$((COMMIT_COUNT % 100))
+          AUTO_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.versionName }}" ]; then
             echo "VERSION_NAME=${{ github.event.inputs.versionName }}" >> $GITHUB_ENV
-            echo "VERSION_DESCRIPTION=${{ github.event.inputs.versionDescription }}" >> $GITHUB_ENV
+            echo "VERSION_DESCRIPTION=${{ github.event.inputs.versionDescription || github.event.head_commit.message }}" >> $GITHUB_ENV
           else
-            echo "VERSION_NAME=${GITHUB_SHA::7}" >> $GITHUB_ENV
+            echo "VERSION_NAME=${AUTO_VERSION}" >> $GITHUB_ENV
             echo "VERSION_DESCRIPTION=${{ github.event.head_commit.message }}" >> $GITHUB_ENV
           fi
+          
+          echo "Generated version: ${AUTO_VERSION}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
