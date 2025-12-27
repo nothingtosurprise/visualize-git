@@ -2384,10 +2384,26 @@ const Visualizer: React.FC<VisualizerProps> = ({
                     {/* Repo Age & Data Info */}
                     <div className="flex items-center justify-between mb-4 text-[10px] text-[#64748b]">
                       <span>📅 Created {starAnalytics.createdAt} ({starAnalytics.ageInDays} days ago)</span>
-                      <span className={`px-2 py-0.5 rounded ${starAnalytics.dataCompleteness >= 90 ? 'bg-[#22c55e]/20 text-[#22c55e]' : 'bg-[#fbbf24]/20 text-[#fbbf24]'}`}>
+                      <span className={`px-2 py-0.5 rounded ${starAnalytics.dataCompleteness >= 90 ? 'bg-[#22c55e]/20 text-[#22c55e]' : starAnalytics.dataCompleteness >= 10 ? 'bg-[#fbbf24]/20 text-[#fbbf24]' : 'bg-[#ef4444]/20 text-[#ef4444]'}`}>
                         {starAnalytics.dataCompleteness.toFixed(0)}% data coverage
                       </span>
                     </div>
+                    
+                    {/* Low data coverage warning */}
+                    {starAnalytics.dataCompleteness < 10 && (
+                      <div className="bg-[#ef4444]/10 border border-[#ef4444]/30 rounded-lg p-3 mb-4">
+                        <div className="flex items-start gap-2">
+                          <span className="text-[#ef4444] text-lg">⚠️</span>
+                          <div>
+                            <p className="text-[#ef4444] text-xs font-medium">Limited star history data</p>
+                            <p className="text-[#94a3b8] text-[10px] mt-1">
+                              For repos with {starAnalytics.totalStars.toLocaleString()}+ stars, GitHub API rate limits prevent fetching complete history. 
+                              Add a <span className="text-[#fbbf24]">GitHub Token</span> with higher rate limits to see detailed charts.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Star Stats Grid */}
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
