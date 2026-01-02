@@ -1431,14 +1431,14 @@ const Visualizer: React.FC<VisualizerProps> = ({
           </div>
         ) : (
           <>
-            <button
-              onClick={() => setShowLayoutToggle(true)}
-              className="p-2.5 bg-[#0d1424] border border-[#1e3a5f] rounded-lg text-[#64748b] hover:text-[#00d4ff] hover:bg-[#1e3a5f] hover:border-[#00d4ff] transition-colors shadow-lg cursor-pointer"
-              title="View options (layouts, timeline)"
-              style={{ pointerEvents: 'auto' }}
-            >
-              <Layers size={16} />
-            </button>
+          <button
+            onClick={() => setShowLayoutToggle(true)}
+            className="p-2.5 bg-[#0d1424] border border-[#1e3a5f] rounded-lg text-[#64748b] hover:text-[#00d4ff] hover:bg-[#1e3a5f] hover:border-[#00d4ff] transition-colors shadow-lg cursor-pointer"
+            title="View options (layouts, timeline)"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <Layers size={16} />
+          </button>
             <button
               onClick={() => setShowDashboard(true)}
               className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-[#0d1424] border border-[#1e3a5f] rounded-lg text-[11px] text-[#94a3b8] hover:border-[#00d4ff] hover:text-[#00d4ff] transition-all shadow-lg"
@@ -2628,6 +2628,24 @@ const Visualizer: React.FC<VisualizerProps> = ({
       <div className={`absolute bottom-2 text-[10px] text-[#475569] font-mono hidden sm:block transition-all ${selectedNode ? 'right-80' : 'right-4'}`}>
         Press <kbd className="px-1 py-0.5 bg-[#1e3a5f] rounded text-[#64748b] font-mono">?</kbd> for shortcuts
       </div>
+
+      {/* Powered by Motia */}
+      <a 
+        href="https://github.com/MotiaDev/motia" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 bg-[#0d1424]/80 backdrop-blur-sm border border-[#1e3a5f]/50 rounded-full text-[10px] text-[#64748b] hover:text-[#00d4ff] hover:border-[#00d4ff]/50 transition-all group"
+      >
+        <svg 
+          className="w-3 h-3 text-[#64748b] group-hover:text-[#00d4ff] transition-colors" 
+          viewBox="0 0 24 24" 
+          fill="currentColor"
+        >
+          <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <span className="font-medium">Powered by</span>
+        <span className="font-bold bg-gradient-to-r from-[#00d4ff] to-[#a855f7] bg-clip-text text-transparent">Motia</span>
+      </a>
 
     </div>
   );
