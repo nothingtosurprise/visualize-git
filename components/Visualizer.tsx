@@ -2629,12 +2629,12 @@ const Visualizer: React.FC<VisualizerProps> = ({
         Press <kbd className="px-1 py-0.5 bg-[#1e3a5f] rounded text-[#64748b] font-mono">?</kbd> for shortcuts
       </div>
 
-      {/* Powered by Motia */}
+      {/* Powered by Motia - positioned at bottom center on mobile, bottom right on desktop (next to shortcuts) */}
       <a 
         href="https://github.com/MotiaDev/motia" 
         target="_blank" 
         rel="noopener noreferrer"
-        className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 bg-[#0d1424]/80 backdrop-blur-sm border border-[#1e3a5f]/50 rounded-full text-[10px] text-[#64748b] hover:text-[#00d4ff] hover:border-[#00d4ff]/50 transition-all group"
+        className={`absolute bottom-2 z-40 flex items-center gap-1.5 px-2.5 py-1 bg-[#0d1424]/90 backdrop-blur-sm border border-[#1e3a5f]/50 rounded-full text-[10px] text-[#64748b] hover:text-[#00d4ff] hover:border-[#00d4ff]/50 transition-all group shadow-lg ${selectedNode ? 'right-80 sm:right-[340px]' : 'right-1/2 translate-x-1/2 sm:translate-x-0 sm:right-36'}`}
       >
         <svg 
           className="w-3 h-3 text-[#64748b] group-hover:text-[#00d4ff] transition-colors" 
